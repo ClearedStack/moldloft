@@ -1,0 +1,30 @@
+{
+  "slug": "moldloft",
+  "name": "Moldloft",
+  "formerly": "cs-06-build",
+  "earlierNames": [
+    "Jig"
+  ],
+  "kind": "worker",
+  "stage": 6,
+  "namespace": "cs-workers",
+  "responsibility": "Generates a tool's repository from its specification and a fixed template.",
+  "interfaces": [
+    "Leases build specifications from Muster",
+    "Commits the generated repository to Plainforge"
+  ],
+  "repository": "moldloft",
+  "image": "moldloft",
+  "dependsOn": [
+    "muster",
+    "plainforge"
+  ],
+  "memory": "30 MiB",
+  "version": "v0.1.0-draft",
+  "subTools": [
+    "calculator",
+    "checklist",
+    "validator",
+    "decision-tree"
+  ]
+}
