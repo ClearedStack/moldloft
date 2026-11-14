@@ -70,3 +70,42 @@ func TestArithmetic(t *testing.T) {
 		t.Error("IsZero is wrong")
 	}
 }
+
+func TestParseISODate(t *testing.T) {
+	mustDate := func(s string) int64 {
+		t.Helper()
+		d, ok := ParseISODate(s)
+		if !ok {
+			t.Fatalf("ParseISODate(%q) refused", s)
+		}
+		return d
+	}
+	if got := mustDate("2024-03-01") - mustDate("2024-02-28"); got != 2 {
+		t.Errorf("leap year 2024 Feb->Mar diff = %d, want 2", got)
+	}
+	if got := mustDate("2025-03-01") - mustDate("2025-02-28"); got != 1 {
+		t.Errorf("common year 2025 Feb->Mar diff = %d, want 1", got)
+	}
+	if got := mustDate("2000-03-01") - mustDate("2000-02-28"); got != 2 {
+		t.Errorf("400-year leap 2000 Feb->Mar diff = %d, want 2", got)
+	}
+	if got := mustDate("2100-03-01") - mustDate("2100-02-28"); got != 1 {
+		t.Errorf("century non-leap 2100 Feb->Mar diff = %d, want 1", got)
+	}
+	if got := mustDate("2026-01-01") - mustDate("2026-01-31"); got != -30 {
+		t.Errorf("reverse date diff = %d, want -30", got)
+	}
+	_ = mustDate("0001-01-01")
+	_ = mustDate("9999-12-31")
+
+	bad := []string{
+		"", "2025-2-1", "2025/02/01", "0000-01-01", "2025-00-10", "2025-13-10",
+		"2025-01-00", "2025-01-32", "2025-02-29", "2100-02-29", "2025-04-31",
+		" 2025-01-01", "2025-01-01 ", "2025-01-01T00:00:00Z",
+	}
+	for _, s := range bad {
+		if _, ok := ParseISODate(s); ok {
+			t.Errorf("ParseISODate(%q) accepted, want refused", s)
+		}
+	}
+}

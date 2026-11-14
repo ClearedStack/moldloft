@@ -1,0 +1,127 @@
+// Generated from the .json file of the same name. Do not edit.
+globalThis.MOLDLOFT_TOOL = {
+  "contract_version": "v1",
+  "template": "calculator",
+  "slug": "sample-period-days",
+  "title": "Sample performance period allowance",
+  "summary": "Counts calendar days between two ISO-8601 dates and multiplies inclusive performance days by a made-up daily allowance. Every rule and number here is invented to exercise date inputs in the calculator template.",
+  "scope_limits": [
+    "Every rule, date range and rate here is fictional. Do not use the result for a real travel voucher, period of performance or contract claim.",
+    "Counts calendar days on the proleptic Gregorian calendar and does not adjust for federal holidays or partial travel days."
+  ],
+  "citations": [
+    {
+      "id": "rule_span",
+      "label": "Sample Rule 45.2(a) (fictional)",
+      "note": "Defines inclusive performance days as elapsed calendar days plus 1",
+      "url": "https://rules.example/sample-rule-45-2"
+    },
+    {
+      "id": "rule_allowance",
+      "label": "Sample Rule 45.2(b) (fictional)",
+      "note": "Multiplies inclusive performance days by the daily allowance rate"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "start_date",
+      "label": "Period start date",
+      "kind": "date",
+      "help": "First calendar day of the performance period.",
+      "decimals": 0,
+      "min": "2020-01-01",
+      "max": "2035-12-31",
+      "default": "2024-02-15"
+    },
+    {
+      "id": "end_date",
+      "label": "Period end date",
+      "kind": "date",
+      "help": "Last calendar day of the performance period.",
+      "decimals": 0,
+      "min": "2020-01-01",
+      "max": "2035-12-31",
+      "default": "2024-03-15"
+    },
+    {
+      "id": "daily_rate",
+      "label": "Daily allowance rate",
+      "kind": "number",
+      "unit": "per day",
+      "decimals": 2,
+      "min": "0.00",
+      "max": "1000.00",
+      "default": "166.50"
+    }
+  ],
+  "constants": [
+    {
+      "id": "inclusive_day",
+      "label": "Inclusive endpoint day",
+      "value": "1",
+      "unit": "days",
+      "citation": "rule_span"
+    },
+    {
+      "id": "min_days",
+      "label": "Minimum billable days",
+      "value": "0",
+      "unit": "days",
+      "citation": "rule_span"
+    }
+  ],
+  "tables": [],
+  "steps": [
+    {
+      "id": "elapsed_days",
+      "label": "Elapsed calendar days",
+      "op": "days_between",
+      "args": [
+        "start_date",
+        "end_date"
+      ],
+      "decimals": 0,
+      "unit": "days",
+      "citation": "rule_span"
+    },
+    {
+      "id": "raw_inclusive_days",
+      "label": "Elapsed days plus start day",
+      "op": "add",
+      "args": [
+        "elapsed_days",
+        "inclusive_day"
+      ],
+      "decimals": 0,
+      "unit": "days",
+      "citation": "rule_span"
+    },
+    {
+      "id": "billable_days",
+      "label": "Billable calendar days",
+      "op": "max",
+      "args": [
+        "raw_inclusive_days",
+        "min_days"
+      ],
+      "decimals": 0,
+      "unit": "days",
+      "citation": "rule_span"
+    },
+    {
+      "id": "period_allowance",
+      "label": "Total period allowance",
+      "op": "mul",
+      "args": [
+        "billable_days",
+        "daily_rate"
+      ],
+      "decimals": 2,
+      "citation": "rule_allowance"
+    }
+  ],
+  "outputs": [
+    "billable_days",
+    "period_allowance"
+  ]
+};

@@ -17,7 +17,7 @@
     return null;
   }
 
-  // readInput returns { value } or { kind }, where kind says what is wrong.
+  // readInput returns { value }, { date, text }, or { kind }, where kind says what is wrong.
   function readInput(tool, input, text) {
     if (typeof text !== "string" || text === "") {
       return { kind: "missing" };
@@ -30,6 +30,18 @@
         }
       }
       return { kind: "choice" };
+    }
+    if (input.kind === "date") {
+      var day = D.parseISODate(text);
+      if (day === null) {
+        return { kind: "date_format" };
+      }
+      var minDay = D.parseISODate(input.min);
+      var maxDay = D.parseISODate(input.max);
+      if (day < minDay || day > maxDay) {
+        return { kind: "range" };
+      }
+      return { date: day, text: text };
     }
     var d = D.parse(text);
     if (d === null) {
@@ -84,11 +96,12 @@
   }
 
   // evaluate returns { values, faults }. `values` maps the id of every input,
-  // constant and step that could be worked out to its decimal text. `faults`
-  // lists { id, kind } for every input refused and every step that failed. A
-  // step that depends on something that failed is left out of both.
+  // constant and step that could be worked out to its decimal or ISO-date text.
+  // `faults` lists { id, kind } for every input refused and every step that
+  // failed. A step that depends on something that failed is left out of both.
   function evaluate(tool, raw) {
     var known = new Map();
+    var knownDates = new Map();
     var values = {};
     var faults = [];
 
@@ -102,6 +115,9 @@
       var got = readInput(tool, input, text);
       if (got.kind) {
         faults.push({ id: input.id, kind: got.kind });
+      } else if (input.kind === "date") {
+        knownDates.set(input.id, got.date);
+        values[input.id] = got.text;
       } else {
         keep(input.id, got.value);
       }
@@ -110,6 +126,18 @@
       keep(c.id, D.parse(c.value));
     });
     tool.steps.forEach(function (step) {
+      if (step.op === "days_between") {
+        if (!knownDates.has(step.args[0]) || !knownDates.has(step.args[1])) {
+          return;
+        }
+        var diff = D.rescale({ units: knownDates.get(step.args[1]) - knownDates.get(step.args[0]), scale: 0 }, step.decimals);
+        if (D.cmp(D.abs(diff), LIMIT) >= 0) {
+          faults.push({ id: step.id, kind: "overflow" });
+        } else {
+          keep(step.id, diff);
+        }
+        return;
+      }
       var args = [];
       for (var i = 0; i < step.args.length; i++) {
         if (!known.has(step.args[i])) {

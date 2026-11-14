@@ -131,3 +131,55 @@ func (d D) Div(o D, scale int) D {
 func (d D) Abs() D {
 	return D{Units: new(big.Int).Abs(d.Units), Scale: d.Scale}
 }
+
+var isoDatePattern = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}$`)
+
+var monthDays = [12]int{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+
+func decDigits(s string) int {
+	n := 0
+	for i := 0; i < len(s); i++ {
+		n = n*10 + int(s[i]-'0')
+	}
+	return n
+}
+
+func isLeapYear(y int) bool {
+	return y%4 == 0 && (y%100 != 0 || y%400 == 0)
+}
+
+// ParseISODate parses a strict proleptic Gregorian YYYY-MM-DD date from
+// 0001-01-01 through 9999-12-31 and returns its exact integer civil day count
+// using pure integer arithmetic (with zero wall-clock or timezone calls).
+func ParseISODate(text string) (int64, bool) {
+	if !isoDatePattern.MatchString(text) {
+		return 0, false
+	}
+	y := decDigits(text[0:4])
+	m := decDigits(text[5:7])
+	d := decDigits(text[8:10])
+	if y < 1 || m < 1 || m > 12 {
+		return 0, false
+	}
+	maxDay := monthDays[m-1]
+	if m == 2 && isLeapYear(y) {
+		maxDay = 29
+	}
+	if d < 1 || d > maxDay {
+		return 0, false
+	}
+	// Howard Hinnant's civil-to-days formula, shifting the year start to March 1.
+	yAdj := y
+	if m <= 2 {
+		yAdj--
+	}
+	era := yAdj / 400
+	yoe := yAdj - era*400
+	mp := m + 9
+	if m > 2 {
+		mp = m - 3
+	}
+	doy := (153*mp+2)/5 + d - 1
+	doe := yoe*365 + yoe/4 - yoe/100 + doy
+	return int64(era)*146097 + int64(doe), true
+}
