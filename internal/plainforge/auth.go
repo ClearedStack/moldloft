@@ -3,8 +3,10 @@ package plainforge
 import (
 	"errors"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -17,29 +19,49 @@ func (c *HTTPCommitter) SetBasicAuth(user, token string) {
 	c.user, c.token = user, token
 }
 
-// LoadCredentials reads the optional push credentials. With neither value set
-// it returns set=false and no error. With only one set, or a token file that
+// LoadCredentials reads the optional push credentials from the files "user"
+// and "token" in dir, which is where a mounted Secret puts its keys. With dir
+// empty, missing, or holding neither file it returns set=false and no error
+// (an absent optional Secret). With only one of the two files, or a file that
 // cannot be read or is empty, it returns an error with a fixed message that
 // names neither the path nor any content.
-func LoadCredentials(user, tokenFile string) (u, token string, set bool, err error) {
-	user, tokenFile = strings.TrimSpace(user), strings.TrimSpace(tokenFile)
-	if user == "" && tokenFile == "" {
+func LoadCredentials(dir string) (user, token string, set bool, err error) {
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
 		return "", "", false, nil
 	}
-	if user == "" || tokenFile == "" {
-		return "", "", false, errors.New("MOLDLOFT_PLAINFORGE_USER and MOLDLOFT_PLAINFORGE_TOKEN_FILE must be set together")
+	user, userErr := readSecretFile(filepath.Join(dir, "user"))
+	token, tokenErr := readSecretFile(filepath.Join(dir, "token"))
+	if errors.Is(userErr, fs.ErrNotExist) && errors.Is(tokenErr, fs.ErrNotExist) {
+		return "", "", false, nil
 	}
-	f, err := os.Open(tokenFile)
+	if errors.Is(userErr, fs.ErrNotExist) || errors.Is(tokenErr, fs.ErrNotExist) {
+		return "", "", false, errors.New("the plainforge credentials need both a user and a token")
+	}
+	if userErr != nil || tokenErr != nil {
+		return "", "", false, errors.New("the plainforge credentials could not be read or are empty")
+	}
+	return user, token, true, nil
+}
+
+// readSecretFile returns the trimmed content of a small file. A missing file
+// keeps its fs.ErrNotExist; every other failure, and an empty file, is a
+// generic error that carries no path or content.
+func readSecretFile(path string) (string, error) {
+	f, err := os.Open(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", fs.ErrNotExist
+	}
 	if err != nil {
-		return "", "", false, errors.New("the plainforge token file could not be opened")
+		return "", errors.New("unreadable")
 	}
 	defer f.Close()
 	raw, err := io.ReadAll(io.LimitReader(f, maxTokenBytes+1))
-	token = strings.TrimSpace(string(raw))
-	if err != nil || len(raw) > maxTokenBytes || token == "" {
-		return "", "", false, errors.New("the plainforge token file could not be read or is empty")
+	v := strings.TrimSpace(string(raw))
+	if err != nil || len(raw) > maxTokenBytes || v == "" {
+		return "", errors.New("unreadable")
 	}
-	return user, token, true, nil
+	return v, nil
 }
 
 func (c *HTTPCommitter) authorize(req *http.Request) {

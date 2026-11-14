@@ -67,17 +67,14 @@ spec:
             - name: PLAINFORGE_URL
               value: http://plainforge-http.clearedstack.svc.cluster.local:3000/ClearedStack
             # Push credentials come from the Secret moldloft-plainforge (keys
-            # user and token), which the owner creates. Both are optional: with
-            # the Secret absent Moldloft pushes without credentials. The target
-            # repository must already exist in the ClearedStack organization.
-            - name: MOLDLOFT_PLAINFORGE_USER
-              valueFrom:
-                secretKeyRef:
-                  name: moldloft-plainforge
-                  key: user
-                  optional: true
-            - name: MOLDLOFT_PLAINFORGE_TOKEN_FILE
-              value: /var/run/moldloft-plainforge/token
+            # user and token), which the owner creates, mounted as files in
+            # this directory. The Secret is optional: with it absent the
+            # directory is missing and Moldloft pushes without credentials.
+            # A Secret with only one of the two keys stops the worker at
+            # start. The target repository must already exist in the
+            # ClearedStack organization.
+            - name: MOLDLOFT_PLAINFORGE_CREDENTIALS_DIR
+              value: /var/run/moldloft-plainforge
             - name: MOLDLOFT_SPOOL_DIR
               value: /var/spool/cs
             - name: MOLDLOFT_PUBLIC_REPO_BASE

@@ -148,26 +148,21 @@ func TestRunRejectsBadConfigAndContractVersionWithoutLeakingPaths(t *testing.T) 
 const fakeToken = "fake-token-0123456789abcdef"
 
 func TestRunPlainforgeCredentialsHalfSetRefusesToStart(t *testing.T) {
-	dir := t.TempDir()
-	tokenFile := filepath.Join(dir, "token")
-	if err := os.WriteFile(tokenFile, []byte(fakeToken+"\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	cases := []map[string]string{
-		{"MOLDLOFT_PLAINFORGE_USER": "bot"},
-		{"MOLDLOFT_PLAINFORGE_TOKEN_FILE": tokenFile},
-		{"MOLDLOFT_PLAINFORGE_USER": "bot", "MOLDLOFT_PLAINFORGE_TOKEN_FILE": filepath.Join(dir, "missing")},
-	}
-	for _, env := range cases {
-		for k, v := range env {
-			t.Setenv(k, v)
+	for name, files := range map[string]map[string]string{
+		"only user":  {"user": "bot"},
+		"only token": {"token": fakeToken},
+		"empty user": {"user": "", "token": fakeToken},
+	} {
+		dir := t.TempDir()
+		for n, c := range files {
+			if err := os.WriteFile(filepath.Join(dir, n), []byte(c), 0o600); err != nil {
+				t.Fatal(err)
+			}
 		}
-		code, out, errOut := runCLI("run", "-standalone", "-once", "-spool", filepath.Join(dir, "spool"))
+		t.Setenv("MOLDLOFT_PLAINFORGE_CREDENTIALS_DIR", dir)
+		code, out, errOut := runCLI("run", "-standalone", "-once", "-spool", filepath.Join(t.TempDir(), "spool"))
 		if code != 2 || errOut == "" || strings.Contains(errOut+out, dir) || strings.Contains(errOut+out, fakeToken) {
-			t.Errorf("%v: exit %d, stdout %q, stderr %q", env, code, out, errOut)
-		}
-		for k := range env {
-			t.Setenv(k, "")
+			t.Errorf("%s: exit %d, stdout %q, stderr %q", name, code, out, errOut)
 		}
 	}
 }
@@ -187,14 +182,16 @@ func TestRunRefusedPushNeverPrintsTheToken(t *testing.T) {
 	dir := t.TempDir()
 	seedFile := filepath.Join(dir, "seed.json")
 	seed := `[{"id":"PA-0101","state":"approved","lane":"urgent","next":"moldloft","results":{"waybill":` + string(rawSpec) + `}}]`
-	tokenFile := filepath.Join(dir, "token")
-	for p, c := range map[string]string{seedFile: seed, tokenFile: fakeToken + "\n"} {
+	credDir := filepath.Join(dir, "creds")
+	if err := os.Mkdir(credDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for p, c := range map[string]string{seedFile: seed, filepath.Join(credDir, "token"): fakeToken + "\n", filepath.Join(credDir, "user"): "bot\n"} {
 		if err := os.WriteFile(p, []byte(c), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
-	t.Setenv("MOLDLOFT_PLAINFORGE_USER", "bot")
-	t.Setenv("MOLDLOFT_PLAINFORGE_TOKEN_FILE", tokenFile)
+	t.Setenv("MOLDLOFT_PLAINFORGE_CREDENTIALS_DIR", credDir)
 
 	_, out, errOut := runCLI("run", "-standalone", "-once", "-seed", seedFile, "-spool", filepath.Join(dir, "spool"), "-plainforge", forge.URL+"/ClearedStack")
 	if len(auth) == 0 || auth[0] == "" {
