@@ -56,11 +56,11 @@
 <dl class="totals">
 <div>
 <dt>Billable rate <span class="unit">(per hour)</span></dt>
-<dd id="total-billable_rate">&mdash;</dd>
+<dd id="total-billable_rate">-</dd>
 </div>
 <div>
 <dt>Total for the hours</dt>
-<dd id="total-total">&mdash;</dd>
+<dd id="total-total">-</dd>
 </div>
 </dl>
 <p class="hint" id="status" aria-live="polite">The result needs JavaScript and has not been worked out.</p>
@@ -78,77 +78,77 @@
 <td>1</td>
 <td>Fringe <span class="unit">(per hour)</span></td>
 <td>Base hourly rate × Fringe percentage ÷ 100, rounded to 2 decimal places.</td>
-<td class="number" id="out-fringe">&mdash;</td>
+<td class="number" id="out-fringe">-</td>
 <td><a href="#cite-rule_fringe">[1]</a></td>
 </tr>
 <tr>
 <td>2</td>
 <td>Rate with fringe <span class="unit">(per hour)</span></td>
 <td>Base hourly rate &#43; Fringe, rounded to 2 decimal places.</td>
-<td class="number" id="out-overhead_base">&mdash;</td>
+<td class="number" id="out-overhead_base">-</td>
 <td><a href="#cite-rule_overhead">[2]</a></td>
 </tr>
 <tr>
 <td>3</td>
 <td>Overhead <span class="unit">(per hour)</span></td>
 <td>Rate with fringe × Overhead percentage ÷ 100, rounded to 2 decimal places.</td>
-<td class="number" id="out-overhead">&mdash;</td>
+<td class="number" id="out-overhead">-</td>
 <td><a href="#cite-rule_overhead">[2]</a></td>
 </tr>
 <tr>
 <td>4</td>
 <td>Cost rate <span class="unit">(per hour)</span></td>
 <td>Base hourly rate &#43; Fringe &#43; Overhead, rounded to 2 decimal places.</td>
-<td class="number" id="out-cost_rate">&mdash;</td>
+<td class="number" id="out-cost_rate">-</td>
 <td></td>
 </tr>
 <tr>
 <td>5</td>
 <td>Fee before the cap <span class="unit">(per hour)</span></td>
 <td>Cost rate × Fee tier ÷ 100, rounded to 2 decimal places.</td>
-<td class="number" id="out-fee_uncapped">&mdash;</td>
+<td class="number" id="out-fee_uncapped">-</td>
 <td><a href="#cite-rule_fee">[3]</a></td>
 </tr>
 <tr>
 <td>6</td>
 <td>Fee <span class="unit">(per hour)</span></td>
 <td>The smallest of: Fee before the cap; Largest fee allowed, rounded to 2 decimal places.</td>
-<td class="number" id="out-fee">&mdash;</td>
+<td class="number" id="out-fee">-</td>
 <td><a href="#cite-rule_fee">[3]</a></td>
 </tr>
 <tr>
 <td>7</td>
 <td>Loaded rate <span class="unit">(per hour)</span></td>
 <td>Cost rate &#43; Fee, rounded to 2 decimal places.</td>
-<td class="number" id="out-loaded_rate">&mdash;</td>
+<td class="number" id="out-loaded_rate">-</td>
 <td></td>
 </tr>
 <tr>
 <td>8</td>
 <td>Loaded rate above the minimum <span class="unit">(per hour)</span></td>
 <td>Loaded rate − Minimum billable rate, rounded to 2 decimal places.</td>
-<td class="number" id="out-above_floor">&mdash;</td>
+<td class="number" id="out-above_floor">-</td>
 <td><a href="#cite-rule_floor">[4]</a></td>
 </tr>
 <tr class="total">
 <td>9</td>
 <td>Billable rate <span class="unit">(per hour)</span></td>
 <td>The largest of: Loaded rate; Minimum billable rate, rounded to 2 decimal places.</td>
-<td class="number" id="out-billable_rate">&mdash;</td>
+<td class="number" id="out-billable_rate">-</td>
 <td><a href="#cite-rule_floor">[4]</a></td>
 </tr>
 <tr class="total">
 <td>10</td>
 <td>Total for the hours</td>
 <td>Billable rate × Hours of work, rounded to 2 decimal places.</td>
-<td class="number" id="out-total">&mdash;</td>
+<td class="number" id="out-total">-</td>
 <td></td>
 </tr>
 <tr>
 <td>11</td>
 <td>Working days <span class="unit">(days)</span></td>
 <td>Hours of work ÷ Hours in a working day, rounded to 1 decimal place.</td>
-<td class="number" id="out-days">&mdash;</td>
+<td class="number" id="out-days">-</td>
 <td></td>
 </tr>
 </tbody>

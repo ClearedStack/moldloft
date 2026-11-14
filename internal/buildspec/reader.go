@@ -52,15 +52,20 @@ type Value struct {
 }
 
 var (
-	idPattern   = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
-	slugPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
-	intPattern  = regexp.MustCompile(`^(0|[1-9][0-9]{0,3})$`)
-	urlPattern  = regexp.MustCompile(`^https://[a-z0-9][a-z0-9.-]{0,99}(/[A-Za-z0-9._~/%#?&=+-]{0,150})?$`)
+	idPattern           = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
+	slugPattern         = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
+	musterItemIDPattern = regexp.MustCompile(`^PA-([0-9]{4}|[1-9][0-9]{4,8})$`)
+	intPattern          = regexp.MustCompile(`^(0|[1-9][0-9]{0,3})$`)
+	urlPattern          = regexp.MustCompile(`^https://[a-z0-9][a-z0-9.-]{0,99}(/[A-Za-z0-9._~/%#?&=+-]{0,150})?$`)
 )
 
 // IsID reports whether s is a well-formed identifier: a lower-case letter
 // followed by up to 31 lower-case letters, digits or underscores.
 func IsID(s string) bool { return idPattern.MatchString(s) }
+
+// IsMusterItemID reports whether s matches Muster's item identifier form
+// (^PA-([0-9]{4}|[1-9][0-9]{4,8})$).
+func IsMusterItemID(s string) bool { return musterItemIDPattern.MatchString(s) }
 
 func join(path, key string) string {
 	if path == "" {
@@ -254,11 +259,73 @@ func (v Value) Slug() string {
 	if !ok {
 		return ""
 	}
-	if !slugPattern.MatchString(s) || strings.HasSuffix(s, "-") || strings.Contains(s, "--") {
+	if !isSlug(s) {
 		v.r.Fail(errs.Parsef(v.path, "is not a well-formed name"))
 		return ""
 	}
 	return s
+}
+
+func isSlug(s string) bool {
+	return slugPattern.MatchString(s) && !strings.HasSuffix(s, "-") && !strings.Contains(s, "--")
+}
+
+// ItemID reads a pipeline item identifier: Muster's PA-0001 form or a
+// standalone fixture name.
+func (v Value) ItemID() string {
+	s, ok := v.str()
+	if !ok {
+		return ""
+	}
+	if !IsMusterItemID(s) && !isSlug(s) {
+		v.r.Fail(errs.Parsef(v.path, "is not a well-formed item identifier"))
+		return ""
+	}
+	return s
+}
+
+// RawString reads a JSON string of at most maxRunes characters with no invalid
+// UTF-8, no invisible/control characters (except '\n' when allowNewlines is
+// true), and no markup.
+func (v Value) RawString(maxRunes int, allowNewlines bool) string {
+	s, ok := v.str()
+	if !ok {
+		return ""
+	}
+	if utf8.RuneCountInString(s) > maxRunes {
+		v.r.Fail(errs.Parsef(v.path, "is longer than %d characters", maxRunes))
+		return ""
+	}
+	runes := []rune(s)
+	for i, c := range runes {
+		if c == '\n' && allowNewlines {
+			continue
+		}
+		if unicode.IsControl(c) || unicode.In(c, unicode.Cf, unicode.Zl, unicode.Zp, unicode.Co, unicode.Cs) || c == utf8.RuneError {
+			v.r.Fail(errs.Parsef(v.path, "holds a control or invisible character"))
+			return ""
+		}
+		if c == '<' && i+1 < len(runes) {
+			if n := runes[i+1]; n == '/' || n == '!' || n == '?' || unicode.IsLetter(n) {
+				v.r.Fail(errs.Parsef(v.path, "looks like markup, which a clean-room specification may not carry"))
+				return ""
+			}
+		}
+	}
+	return s
+}
+
+// Bool reads a JSON boolean.
+func (v Value) Bool() bool {
+	if !v.ok() {
+		return false
+	}
+	b, ok := v.v.(bool)
+	if !ok {
+		v.r.Fail(errs.Parsef(v.path, "is not a boolean"))
+		return false
+	}
+	return b
 }
 
 // URL reads an https address written in plain ASCII.

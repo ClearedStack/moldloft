@@ -11,6 +11,9 @@ import (
 	"github.com/ClearedStack/moldloft/internal/repotree"
 	stacktemplates "github.com/ClearedStack/moldloft/stack-templates"
 	"github.com/ClearedStack/moldloft/stack-templates/calculator"
+	"github.com/ClearedStack/moldloft/stack-templates/checklist"
+	decisiontree "github.com/ClearedStack/moldloft/stack-templates/decision-tree"
+	"github.com/ClearedStack/moldloft/stack-templates/validator"
 )
 
 // Name and Version are this component's entries in component.json.
@@ -19,6 +22,16 @@ const (
 	Version = "v0.1.0-draft"
 )
 
+// Meta describes the generated repository without carrying the file contents.
+type Meta struct {
+	ItemID         string
+	Slug           string
+	Template       string
+	SpecSHA256     string
+	ManifestSHA256 string
+	FileCount      int
+}
+
 type template struct {
 	matches  func(*buildspec.Spec) bool
 	generate func(*buildspec.Spec, string) (repotree.Tree, error)
@@ -26,16 +39,26 @@ type template struct {
 
 // built maps a registry name to the code of a template that exists.
 var built = map[string]template{
-	calculator.Name: {calculator.Matches, calculator.Generate},
+	calculator.Name:   {calculator.Matches, calculator.Generate},
+	checklist.Name:    {checklist.Matches, checklist.Generate},
+	validator.Name:    {validator.Matches, validator.Generate},
+	decisiontree.Name: {decisiontree.Matches, decisiontree.Generate},
 }
 
 // Generate checks raw against the contract, picks the stack template that
 // matches and returns the generated repository. Its errors are *errs.Error
 // values carrying E_PARSE or E_NEEDS_SUBTOOL.
 func Generate(raw []byte) (repotree.Tree, error) {
+	tree, _, err := GenerateWithMeta(raw)
+	return tree, err
+}
+
+// GenerateWithMeta performs the same deterministic generation as Generate and
+// also returns the summary metadata reported to Muster.
+func GenerateWithMeta(raw []byte) (repotree.Tree, Meta, error) {
 	spec, err := buildspec.Parse(raw)
 	if err != nil {
-		return nil, err
+		return nil, Meta{}, err
 	}
 	// Templates are tried in registry order and the first match wins. When
 	// none matches, the item is paused; nothing is improvised.
@@ -46,13 +69,20 @@ func Generate(raw []byte) (repotree.Tree, error) {
 		}
 		tree, err := t.generate(spec, Version)
 		if err != nil {
-			return nil, err
+			return nil, Meta{}, err
 		}
 		tree.Add("LICENSE", []byte(licenseText))
 		tree.Add("moldloft.json", manifest(spec, entry.Name, tree))
-		return tree, nil
+		return tree, Meta{
+			ItemID:         spec.ItemID,
+			Slug:           spec.Slug,
+			Template:       entry.Name,
+			SpecSHA256:     spec.SHA256,
+			ManifestSHA256: tree.SHA256("moldloft.json"),
+			FileCount:      len(tree),
+		}, nil
 	}
-	return nil, errs.NeedsSubtoolf("pattern", "no built stack template matches this pattern")
+	return nil, Meta{}, errs.NeedsSubtoolf("pattern", "no built stack template matches this pattern")
 }
 
 type manifestFile struct {

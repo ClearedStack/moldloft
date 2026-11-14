@@ -1,0 +1,92 @@
+# Moldloft worker in the cs-workers namespace.
+#
+# The container image is pinned by digest. Replace the placeholder all-zero
+# sha256 digest with the arm64 digest produced by `ko build` when pushing the
+# release image into Lazarette or the release registry before applying.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: moldloft
+  namespace: cs-workers
+  labels:
+    app.kubernetes.io/name: moldloft
+    app.kubernetes.io/part-of: clearedstack
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: moldloft
+  namespace: cs-workers
+  labels:
+    app.kubernetes.io/name: moldloft
+    app.kubernetes.io/part-of: clearedstack
+    app.kubernetes.io/version: v0.1.0-draft
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: moldloft
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: moldloft
+        app.kubernetes.io/part-of: clearedstack
+    spec:
+      serviceAccountName: moldloft
+      automountServiceAccountToken: true
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: ["arm64"]
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: ["cm3588-plus"]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: moldloft
+          image: lazarette.clearedstack.svc.cluster.local:5000/moldloft@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          imagePullPolicy: IfNotPresent
+          args: ["run"]
+          env:
+            - name: CONTRACT_VERSION
+              value: v1
+            - name: MUSTER_URL
+              value: http://muster.clearedstack.svc.cluster.local:8080
+            - name: MOLDLOFT_SPOOL_DIR
+              value: /var/spool/cs
+            - name: MOLDLOFT_PUBLIC_REPO_BASE
+              value: https://github.com/clearedstack
+            - name: GOMEMLIMIT
+              value: 24MiB
+          resources:
+            requests:
+              cpu: 10m
+              memory: 24Mi
+            limits:
+              cpu: 200m
+              memory: 30Mi
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: spool
+              mountPath: /var/spool/cs
+      volumes:
+        - name: spool
+          emptyDir:
+            sizeLimit: 16Mi

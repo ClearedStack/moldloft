@@ -9,6 +9,7 @@ package buildspec
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 
 	"github.com/ClearedStack/moldloft/internal/errs"
 )
@@ -56,6 +57,35 @@ func (s *Spec) HasCitation(id string) bool {
 	return false
 }
 
+// UnwrapWaybillResult validates the clean-room boundary on results.waybill and
+// returns the raw JSON bytes of the build specification. It accepts either a
+// direct build specification object (carrying contract_version) or an envelope
+// carrying the specification under "spec" alongside catalog fields such as
+// slug, entry and provenance. Any forbidden raw observation field anywhere in
+// results.waybill is refused with E_PARSE before extraction.
+func UnwrapWaybillResult(raw []byte) ([]byte, error) {
+	if len(raw) == 0 {
+		return nil, errs.Parsef("results.waybill", "is missing")
+	}
+	top, perr := decode(raw)
+	if perr != nil {
+		return nil, perr
+	}
+	if _, hasDirect := top["contract_version"]; hasDirect {
+		return raw, nil
+	}
+	var env struct {
+		Spec json.RawMessage `json:"spec"`
+	}
+	if err := json.Unmarshal(raw, &env); err != nil || len(env.Spec) == 0 {
+		return nil, errs.Parsef("results.waybill", "has no build specification")
+	}
+	if _, perr := decode(env.Spec); perr != nil {
+		return nil, perr
+	}
+	return env.Spec, nil
+}
+
 // Parse reads raw and checks every field outside the pattern-specific body.
 func Parse(raw []byte) (*Spec, error) {
 	fields, perr := decode(raw)
@@ -72,7 +102,7 @@ func Parse(raw []byte) (*Spec, error) {
 			r.Fail(errs.Parsef(v.path, "is not %s", ContractVersion))
 		}
 	}
-	s.ItemID = top.Get("item_id").Slug()
+	s.ItemID = top.Get("item_id").ItemID()
 
 	tool := top.Get("tool").Object()
 	s.Slug = tool.Get("slug").Slug()

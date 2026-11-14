@@ -16,7 +16,7 @@
     divide_by_zero: "Cannot be worked out: this step would divide by zero.",
     overflow: "Cannot be worked out: the result is too large."
   };
-  var BLANK = "—";
+  var BLANK = "-";
 
   function el(id) {
     return doc.getElementById(id);

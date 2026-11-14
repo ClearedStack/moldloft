@@ -107,3 +107,38 @@ func TestOversizedSpecIsParseError(t *testing.T) {
 		t.Errorf("exit %d, stderr %q", code, errOut)
 	}
 }
+
+func TestRunStandaloneDrainsSeededItems(t *testing.T) {
+	rawSpec, err := os.ReadFile("../../stack-templates/checklist/fixtures/golden/sample-solicitation-review/spec.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedJSON := `[{"id":"PA-0101","state":"approved","lane":"urgent","next":"moldloft","results":{"waybill":` + string(rawSpec) + `}}]`
+	dir := t.TempDir()
+	seedFile := filepath.Join(dir, "seed.json")
+	if err := os.WriteFile(seedFile, []byte(seedJSON), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	spoolDir := filepath.Join(dir, "spool")
+	code, out, errOut := runCLI("run", "-standalone", "-once", "-seed", seedFile, "-spool", spoolDir)
+	if code != 0 || errOut != "" {
+		t.Fatalf("exit %d, stdout %q, stderr %q", code, out, errOut)
+	}
+	if !strings.Contains(out, "event=completed item=PA-0101 state=building") {
+		t.Errorf("unexpected stdout %q", out)
+	}
+}
+
+func TestRunRejectsBadConfigAndContractVersionWithoutLeakingPaths(t *testing.T) {
+	dir := t.TempDir()
+	code, _, errOut := runCLI("run", "-spool", dir)
+	if code != 2 || strings.Contains(errOut, dir) {
+		t.Errorf("missing muster: exit %d, stderr %q", code, errOut)
+	}
+
+	t.Setenv("CONTRACT_VERSION", "v99")
+	code, _, errOut = runCLI("run", "-standalone", "-once", "-spool", dir)
+	if code != 1 || !strings.HasPrefix(errOut, "E_NEEDS_SUBTOOL:") {
+		t.Errorf("bad CONTRACT_VERSION: exit %d, stderr %q", code, errOut)
+	}
+}

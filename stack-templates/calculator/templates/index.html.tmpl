@@ -51,7 +51,7 @@
 {{- range .Outputs}}
 <div>
 <dt>{{.Label}}{{if .Unit}} <span class="unit">({{.Unit}})</span>{{end}}</dt>
-<dd id="total-{{.ID}}">&mdash;</dd>
+<dd id="total-{{.ID}}">-</dd>
 </div>
 {{- end}}
 </dl>
@@ -71,7 +71,7 @@
 <td>{{.N}}</td>
 <td>{{.Label}}{{if .Unit}} <span class="unit">({{.Unit}})</span>{{end}}</td>
 <td>{{.How}}</td>
-<td class="number" id="out-{{.ID}}">&mdash;</td>
+<td class="number" id="out-{{.ID}}">-</td>
 <td>{{if .Cite}}<a href="#cite-{{.Cite.ID}}">[{{.Cite.N}}]</a>{{end}}</td>
 </tr>
 {{- end}}

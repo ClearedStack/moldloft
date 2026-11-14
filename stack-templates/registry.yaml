@@ -11,10 +11,10 @@ templates:
     status: built
   - name: checklist
     path: checklist
-    status: planned
+    status: built
   - name: validator
     path: validator
-    status: planned
+    status: built
   - name: decision-tree
     path: decision-tree
-    status: planned
+    status: built

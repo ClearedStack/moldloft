@@ -37,6 +37,11 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("%s: %s: %s", e.Code, e.Path, e.Reason)
 }
 
+// Timeoutf builds an E_TIMEOUT error for the field or boundary at path.
+func Timeoutf(path, format string, args ...any) *Error {
+	return &Error{Code: Timeout, Path: path, Reason: fmt.Sprintf(format, args...)}
+}
+
 // Parsef builds an E_PARSE error for the field at path.
 func Parsef(path, format string, args ...any) *Error {
 	return &Error{Code: Parse, Path: path, Reason: fmt.Sprintf(format, args...)}

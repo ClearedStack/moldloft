@@ -1,10 +1,23 @@
 # Build specification, contract v1 (working proposal)
 
 `SPEC.md` says Moldloft validates each build specification against
-`CONTRACT_VERSION=v1` but does not define the fields. This page writes down
-the shape Moldloft reads today so that it can be reviewed and corrected. It is
-a proposal, not an agreed contract. Complete examples are in
-[`stack-templates/calculator/fixtures/golden/`](../stack-templates/calculator/fixtures/golden).
+`CONTRACT_VERSION=v1` and Muster's `contract/v1/CONTRACT.md` passes upstream
+worker outputs in `results.waybill`. Because `CONTRACT.md` leaves the inner
+contents of `results.waybill` opaque, this page writes down the exact JSON
+shape Moldloft reads today so Waybill and Moldloft can align on one shared
+schema. Complete examples live under `fixtures/golden/` in each folder of
+[`stack-templates/`](../stack-templates).
+
+## Envelope in `results.waybill`
+
+When Moldloft leases an `approved` or `building` item from Muster, it ignores
+`found` and every `results` entry except `results.waybill`. `results.waybill`
+may be either:
+
+1. The build specification object directly (carrying `contract_version`), or
+2. An envelope object carrying catalog metadata alongside `"spec": { ... }`,
+   from which Moldloft extracts `spec` after verifying that the outer envelope
+   contains no forbidden raw observation fields.
 
 ## Rules for the whole file
 
@@ -12,8 +25,9 @@ a proposal, not an agreed contract. Complete examples are in
 - A field the contract does not define is refused. So is a field name used
   twice in one object, and anything after the closing brace.
 - These field names are refused anywhere in the file, because they mark raw
-  observation material: `html`, `raw_html`, `screenshot`, `screenshots`,
-  `snapshot`, `snapshots`, `observation`, `observations`.
+  observation material: `html`, `raw_html`, `raw_text`, `body_text`,
+  `page_text`, `dom`, `headers`, `response_headers`, `screenshot`,
+  `screenshots`, `snapshot`, `snapshots`, `observation`, `observations`.
 - Display text is one line: no line breaks, control or invisible characters,
   no leading or trailing space, and nothing that looks like markup (`<` followed
   by a letter, `/`, `!` or `?`).
@@ -30,44 +44,30 @@ Every breach of these rules is `E_PARSE`.
 | Field | Meaning |
 | --- | --- |
 | `contract_version` | Must be `"v1"`. |
-| `item_id` | The pipeline item: lower-case letters, digits and hyphens. |
+| `item_id` | Muster item identifier (`PA-0001` through `PA-999999999`) or a local fixture slug (`item-sample-0001`). In worker mode, `item_id` must equal the leased grant's `id`. |
 | `tool.slug`, `tool.title`, `tool.summary` | The generated tool's name (lower-case letters, digits, hyphens), title (80 characters) and summary (400). |
-| `pattern` | Which stack template the tool needs. The matching rule of each template reads only this field. A pattern no built template matches is `E_NEEDS_SUBTOOL`. |
+| `pattern` | Which stack template the tool needs (`calculator`, `checklist`, `validator`, or `decision-tree`). A pattern no built template matches is `E_NEEDS_SUBTOOL`. |
 | `citations` | 1 to 50 of `{id, label, note?, url?}`. `url` must be a plain `https://` address and is shown as text, never loaded. |
 | `scope_limits` | 1 to 20 lines saying what the tool does not cover. |
 | `body` | The pattern-specific part, below. |
 | `worked_examples` | 1 to 50 worked examples; their shape belongs to the pattern. |
 
-## `body` for the `calculator` pattern
+## `calculator` pattern
 
-| Field | Meaning |
-| --- | --- |
-| `inputs` | 1 to 40. Each has `id`, `label`, `kind`, optional `help`. `kind: "number"` adds `decimals` (0 to 9), `min`, `max`, `default`, optional `unit`. `kind: "choice"` adds `table` and `default` (a row key); its value is the chosen row's value. Any other kind is `E_NEEDS_SUBTOOL`. |
-| `constants` | Optional, up to 40 of `{id, label, value, unit?, citation?}`. |
-| `tables` | Optional, up to 20 of `{id, label, unit?, citation?, rows}` with 1 to 200 rows of `{key, label, value}`. |
-| `steps` | 1 to 80 of `{id, label, op, args, decimals, unit?, citation?}`. Each argument names an input, a constant or an earlier step. |
-| `outputs` | 1 to 10 step ids shown as the result. |
+- `body`: `inputs` (1 to 40 `number` or `choice` inputs; any other `kind` such as `date` is `E_NEEDS_SUBTOOL`), optional `constants`, optional `tables`, `steps` (1 to 80 exact-decimal steps using `add`, `sub`, `mul`, `div`, `pct`, `min`, `max`, rounded half-away-from-zero to `decimals`), and `outputs` (1 to 10 step ids).
+- `worked_examples`: `{id, label, inputs, expect}` verified against the exact decimal evaluator before any file is generated.
 
-Inputs, constants and steps share one set of ids.
+## `checklist` pattern
 
-| `op` | Arguments | Result before rounding |
-| --- | --- | --- |
-| `add` | 2 to 8 | the sum |
-| `sub` | 2 | first minus second |
-| `mul` | 2 to 8 | the product |
-| `div` | 2 | first divided by second |
-| `pct` | 2 | first times second, divided by 100 |
-| `min`, `max` | 2 to 8 | the smallest, the largest |
+- `body`: `items` (1 to 60 of `{id, label, required, allow_na, citation, help?, kind?}`). Only `kind: "yes_no"` (the default) is built; any other `kind` is `E_NEEDS_SUBTOOL`.
+- `worked_examples`: `{id, label, answers, expect}` where `expect` states `{status, unmet_required, yes_count, no_count, na_count}`. `status` is `"complete"` when every required item is answered `"yes"` (or `"na"` when `allow_na` is true) and `"incomplete"` otherwise.
 
-Any other `op` is `E_NEEDS_SUBTOOL`. Arithmetic is exact decimal arithmetic.
-Every step is rounded to its own `decimals`, halves away from zero. A result
-of 10^15 or more is refused.
+## `validator` pattern
 
-## Worked examples for the `calculator` pattern
+- `body`: `delimiter` (`comma`, `pipe`, `colon`, or `tab`; any other value is `E_NEEDS_SUBTOOL`), `has_header` (boolean), optional `tables` (`{id, label, citation?, codes}`), and `columns` (1 to 20 of `{id, label, required, rule, citation, min_len?, max_len?, table?, prefix?}`). Built column rules are `text`, `digits`, `upper_code`, and `in_table`; any other `rule` is `E_NEEDS_SUBTOOL`.
+- `worked_examples`: `{id, label, input, expect}` where `input` is multiline delimited text and `expect` states `{valid, row_count, error_count}`.
 
-Each is `{id, label, inputs, expect}`. `inputs` gives a value for every input
-(a decimal string, or a row key for a choice). `expect` states the result of
-every output, and of any other steps, written with exactly that step's number
-of decimal places. Moldloft works each example out before generating anything.
-If a stated result differs from the calculation, or an example cannot be
-worked out, the specification is `E_PARSE`.
+## `decision-tree` pattern
+
+- `body`: `start` (starting question id), `questions` (1 to 40 of `{id, prompt, help?, citation, kind?, options}` with 2 to 10 `{key, label, next}` options; only `kind: "choice"` is built), and `outcomes` (1 to 20 of `{id, title, summary, status, citation}` where `status` is `eligible`, `ineligible`, or `review`). Cycles, dangling `next` targets, and unreachable questions or outcomes are refused with `E_PARSE`.
+- `worked_examples`: `{id, label, answers, expect}` where `expect` states `{outcome, status, steps}`.
