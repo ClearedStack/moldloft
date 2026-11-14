@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ClearedStack/moldloft/internal/buildspec"
 	"github.com/ClearedStack/moldloft/internal/errs"
@@ -26,9 +27,9 @@ import (
 // results.moldloft.publish.repository when MOLDLOFT_PUBLIC_REPO_BASE is unset.
 const DefaultPublicRepoBase = "https://github.com/clearedstack"
 
-// maxResultBytes leaves 4 KiB of headroom for the POST /v1/complete envelope
-// beneath Muster's 64 KiB worker request limit.
-const maxResultBytes = muster.MaxWorkerRequestBytes - (4 << 10)
+// maxResultBytes leaves 512 bytes of headroom for the POST /v1/complete
+// envelope beneath Muster's 64 KiB worker request limit.
+const maxResultBytes = muster.MaxWorkerRequestBytes - 512
 
 // PublishRecord is the Chartroom-compatible publish block written under
 // results.moldloft.publish.
@@ -51,11 +52,15 @@ type BuildRecord struct {
 }
 
 // ResultPayload is the JSON object Moldloft records in Muster's results map
-// under results.moldloft. Top-level keys are restricted to "publish" and
-// "build" so Moldloft never collides with Waybill, Assay or Chartroom blocks.
+// under results.moldloft. Its top-level fields match Shakedown's strict
+// moldloftWire decoder (status, regulatory_ambiguity, publish, build, files)
+// and Chartroom's publish block without colliding with other catalog keys.
 type ResultPayload struct {
-	Publish PublishRecord `json:"publish"`
-	Build   BuildRecord   `json:"build"`
+	Status              string            `json:"status,omitempty"`
+	RegulatoryAmbiguity bool              `json:"regulatory_ambiguity,omitempty"`
+	Publish             *PublishRecord    `json:"publish,omitempty"`
+	Build               *BuildRecord      `json:"build,omitempty"`
+	Files               map[string]string `json:"files,omitempty"`
 }
 
 // Config configures a Worker instance.
@@ -248,9 +253,31 @@ func (w *Worker) processGrant(ctx context.Context, grant *muster.Grant) spool.En
 
 	// Clean-room boundary: ignore grant.Found and every key in grant.Results
 	// other than "waybill".
-	specBytes, err := buildspec.UnwrapWaybillResult(grant.Results["waybill"])
+	specBytes, regulatoryAmbiguity, err := buildspec.UnwrapWaybillEnvelope(grant.Results["waybill"])
 	if err != nil {
 		return failOrPause(grant.Lease, itemID, err)
+	}
+	if regulatoryAmbiguity {
+		payload := ResultPayload{
+			Status:              "regulatory_ambiguity",
+			RegulatoryAmbiguity: true,
+		}
+		resultBytes, err := json.Marshal(payload)
+		if err != nil || len(resultBytes) > maxResultBytes {
+			return spool.Entry{
+				Action: spool.ActionFail,
+				Lease:  grant.Lease,
+				ItemID: itemID,
+				Code:   errs.Parse,
+			}
+		}
+		return spool.Entry{
+			Action: spool.ActionComplete,
+			Lease:  grant.Lease,
+			ItemID: itemID,
+			State:  muster.StateBuilding,
+			Result: resultBytes,
+		}
 	}
 
 	tree, meta, err := generate.GenerateWithMeta(specBytes)
@@ -266,16 +293,30 @@ func (w *Worker) processGrant(ctx context.Context, grant *muster.Grant) spool.En
 		}
 	}
 
+	files := make(map[string]string, len(tree))
+	for _, p := range tree.Paths() {
+		if !utf8.Valid(tree[p]) {
+			return spool.Entry{
+				Action: spool.ActionFail,
+				Lease:  grant.Lease,
+				ItemID: itemID,
+				Code:   errs.Parse,
+			}
+		}
+		files[p] = string(tree[p])
+	}
+
 	receipt, err := w.committer.Commit(ctx, meta.Slug, meta.SpecSHA256, tree)
 	if err != nil {
 		return failOrPause(grant.Lease, itemID, err)
 	}
 
 	payload := ResultPayload{
-		Publish: PublishRecord{
+		Status: "built",
+		Publish: &PublishRecord{
 			Repository: w.publicRepoBase + "/" + meta.Slug,
 		},
-		Build: BuildRecord{
+		Build: &BuildRecord{
 			ContractVersion: muster.ContractVersion,
 			Template:        meta.Template,
 			ToolSlug:        meta.Slug,
@@ -286,6 +327,7 @@ func (w *Worker) processGrant(ctx context.Context, grant *muster.Grant) spool.En
 			FileCount:       meta.FileCount,
 			Committed:       receipt.Committed,
 		},
+		Files: files,
 	}
 	resultBytes, err := json.Marshal(payload)
 	if err != nil || len(resultBytes) > maxResultBytes {

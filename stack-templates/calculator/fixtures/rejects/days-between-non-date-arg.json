@@ -1,0 +1,59 @@
+{
+  "contract_version": "v1",
+  "item_id": "item-sample-0003",
+  "tool": {
+    "slug": "sample-period-days",
+    "title": "Sample period per-diem calculator",
+    "summary": "Counts calendar days between two dates and multiplies by a fictional daily rate."
+  },
+  "pattern": "calculator",
+  "citations": [
+    {
+      "id": "rule_period",
+      "label": "Sample Rule 45.2 (fictional)"
+    }
+  ],
+  "scope_limits": [
+    "Every rule and number here is fictional. Do not use the result for a real claim."
+  ],
+  "body": {
+    "inputs": [
+      {
+        "id": "days_guess",
+        "label": "Days guess",
+        "kind": "number",
+        "decimals": 0,
+        "min": "0",
+        "max": "365",
+        "default": "10"
+      },
+      {
+        "id": "end_date",
+        "label": "End date",
+        "kind": "date",
+        "min": "2020-01-01",
+        "max": "2030-12-31",
+        "default": "2025-03-10"
+      }
+    ],
+    "steps": [
+      {
+        "id": "elapsed_days",
+        "label": "Elapsed days",
+        "op": "days_between",
+        "args": ["days_guess", "end_date"],
+        "decimals": 0,
+        "citation": "rule_period"
+      }
+    ],
+    "outputs": ["elapsed_days"]
+  },
+  "worked_examples": [
+    {
+      "id": "ex_one",
+      "label": "Ten days",
+      "inputs": { "days_guess": "10", "end_date": "2025-03-11" },
+      "expect": { "elapsed_days": "10" }
+    }
+  ]
+}

@@ -57,33 +57,53 @@ func (s *Spec) HasCitation(id string) bool {
 	return false
 }
 
-// UnwrapWaybillResult validates the clean-room boundary on results.waybill and
-// returns the raw JSON bytes of the build specification. It accepts either a
-// direct build specification object (carrying contract_version) or an envelope
-// carrying the specification under "spec" alongside catalog fields such as
-// slug, entry and provenance. Any forbidden raw observation field anywhere in
-// results.waybill is refused with E_PARSE before extraction.
-func UnwrapWaybillResult(raw []byte) ([]byte, error) {
+// UnwrapWaybillEnvelope validates the clean-room boundary on results.waybill
+// and returns either the raw JSON bytes of the build specification or
+// regulatoryAmbiguity=true when Waybill flagged regulatory ambiguity for
+// downstream parking by Shakedown. Any forbidden raw observation field
+// anywhere in results.waybill is refused with E_PARSE before extraction.
+func UnwrapWaybillEnvelope(raw []byte) (spec []byte, regulatoryAmbiguity bool, err error) {
 	if len(raw) == 0 {
-		return nil, errs.Parsef("results.waybill", "is missing")
+		return nil, false, errs.Parsef("results.waybill", "is missing")
 	}
 	top, perr := decode(raw)
 	if perr != nil {
-		return nil, perr
-	}
-	if _, hasDirect := top["contract_version"]; hasDirect {
-		return raw, nil
+		return nil, false, perr
 	}
 	var env struct {
-		Spec json.RawMessage `json:"spec"`
+		Spec                json.RawMessage `json:"spec"`
+		Status              string          `json:"status"`
+		RegulatoryAmbiguity bool            `json:"regulatory_ambiguity"`
 	}
-	if err := json.Unmarshal(raw, &env); err != nil || len(env.Spec) == 0 {
-		return nil, errs.Parsef("results.waybill", "has no build specification")
+	if err := json.Unmarshal(raw, &env); err != nil {
+		return nil, false, errs.Parsef("results.waybill", "is not a valid JSON object")
+	}
+	if env.RegulatoryAmbiguity || env.Status == "regulatory_ambiguity" {
+		return nil, true, nil
+	}
+	if _, hasDirect := top["contract_version"]; hasDirect {
+		return raw, false, nil
+	}
+	if len(env.Spec) == 0 {
+		return nil, false, errs.Parsef("results.waybill", "has no build specification")
 	}
 	if _, perr := decode(env.Spec); perr != nil {
-		return nil, perr
+		return nil, false, perr
 	}
-	return env.Spec, nil
+	return env.Spec, false, nil
+}
+
+// UnwrapWaybillResult validates the clean-room boundary on results.waybill and
+// returns the raw JSON bytes of the build specification.
+func UnwrapWaybillResult(raw []byte) ([]byte, error) {
+	spec, ambig, err := UnwrapWaybillEnvelope(raw)
+	if err != nil {
+		return nil, err
+	}
+	if ambig {
+		return nil, errs.Parsef("results.waybill", "signals regulatory ambiguity without a build specification")
+	}
+	return spec, nil
 }
 
 // Parse reads raw and checks every field outside the pattern-specific body.

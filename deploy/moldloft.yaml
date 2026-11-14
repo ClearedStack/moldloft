@@ -64,6 +64,8 @@ spec:
               value: v1
             - name: MUSTER_URL
               value: http://muster.clearedstack.svc.cluster.local:8080
+            - name: PLAINFORGE_URL
+              value: http://plainforge.clearedstack.svc.cluster.local:8080
             - name: MOLDLOFT_SPOOL_DIR
               value: /var/spool/cs
             - name: MOLDLOFT_PUBLIC_REPO_BASE

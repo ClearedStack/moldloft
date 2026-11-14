@@ -90,13 +90,14 @@ type Example struct {
 // takes. An operation that is not here is not guessed at: the item is paused
 // with E_NEEDS_SUBTOOL.
 var ops = map[string]struct{ min, max int }{
-	"add": {2, 8}, // a + b + ...
-	"sub": {2, 2}, // a - b
-	"mul": {2, 8}, // a * b * ...
-	"div": {2, 2}, // a / b
-	"pct": {2, 2}, // b percent of a
-	"min": {2, 8}, // the smallest
-	"max": {2, 8}, // the largest
+	"add":          {2, 8}, // a + b + ...
+	"sub":          {2, 2}, // a - b
+	"mul":          {2, 8}, // a * b * ...
+	"div":          {2, 2}, // a / b
+	"pct":          {2, 2}, // b percent of a
+	"min":          {2, 8}, // the smallest
+	"max":          {2, 8}, // the largest
+	"days_between": {2, 2}, // calendar days from a to b (b - a)
 }
 
 func (t *Tool) table(id string) *Table {
@@ -193,6 +194,7 @@ func parse(spec *buildspec.Spec) (*Tool, []Example, error) {
 		}
 	}
 
+	dateInputs := map[string]bool{}
 	for _, item := range body.Get("inputs").List(1, 40) {
 		o := item.Object()
 		in := Input{ID: claim(o.Get("id")), Label: o.Get("label").Text(120), Help: optText(o, "help", 300)}
@@ -241,6 +243,24 @@ func parse(spec *buildspec.Spec) (*Tool, []Example, error) {
 					}
 				}
 			}
+		case "date":
+			in.Unit = optText(o, "unit", 40)
+			loDay, loText := o.Get("min").ISODate()
+			hiDay, hiText := o.Get("max").ISODate()
+			def := o.Get("default")
+			dDay, defText := def.ISODate()
+			in.Min, in.Max, in.Default = loText, hiText, defText
+			if in.ID != "" {
+				dateInputs[in.ID] = true
+			}
+			if r.Err() == nil {
+				switch {
+				case loDay > hiDay:
+					r.Fail(errs.Parsef(item.Path()+".min", "is after max"))
+				case dDay < loDay || dDay > hiDay:
+					r.Fail(errs.Parsef(def.Path(), "is outside min and max"))
+				}
+			}
 		case "":
 		default:
 			if r.Err() == nil {
@@ -277,13 +297,23 @@ func parse(spec *buildspec.Spec) (*Tool, []Example, error) {
 			// already in the order they must be worked out.
 			if ref != "" && !names[ref] {
 				r.Fail(errs.Parsef(a.Path(), "does not name an input, a constant or an earlier step"))
+			} else if ref != "" && known && r.Err() == nil {
+				if st.Op == "days_between" && !dateInputs[ref] {
+					r.Fail(errs.Parsef(a.Path(), "does not name a date input"))
+				} else if st.Op != "days_between" && dateInputs[ref] {
+					r.Fail(errs.Parsef(a.Path(), "names a date input, which may only be used with days_between"))
+				}
 			}
 			st.Args = append(st.Args, ref)
 		}
 		if known && r.Err() == nil && (len(st.Args) < rule.min || len(st.Args) > rule.max) {
 			r.Fail(errs.Parsef(argv.Path(), "is the wrong number of arguments for the operation"))
 		}
-		st.Decimals = o.Get("decimals").Int(0, decimal.MaxScale)
+		decv := o.Get("decimals")
+		st.Decimals = decv.Int(0, decimal.MaxScale)
+		if st.Op == "days_between" && st.Decimals != 0 && r.Err() == nil {
+			r.Fail(errs.Parsef(decv.Path(), "must be 0 for days_between"))
+		}
 		st.ID = claim(o.Get("id"))
 		o.Close()
 		t.Steps = append(t.Steps, st)
@@ -346,6 +376,8 @@ func parseExamples(spec *buildspec.Spec, t *Tool) ([]Example, error) {
 				r.Fail(errs.Parsef(inputs.Path(), "gives a value for something that is not an input"))
 			} else if in.Kind == "choice" {
 				ex.Inputs[key] = v.ID()
+			} else if in.Kind == "date" {
+				_, ex.Inputs[key] = v.ISODate()
 			} else {
 				_, ex.Inputs[key] = v.Decimal()
 			}

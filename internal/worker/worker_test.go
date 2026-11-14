@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -143,8 +144,15 @@ func TestPriorityLanesAllFourTemplatesAndRebuild(t *testing.T) {
 		t.Errorf("worker logs leaked observation strings: %q", logBuf.String())
 	}
 
-	// Check every item moved to building (next: shakedown) with Chartroom-compatible results.moldloft
-	// and live commits in Plainforge.
+	// Check every item moved to building (next: shakedown) with Shakedown- and
+	// Chartroom-compatible results.moldloft and live commits in Plainforge.
+	type shakedownMoldloftWire struct {
+		Files               map[string]string `json:"files"`
+		Publish             json.RawMessage   `json:"publish"`
+		Build               json.RawMessage   `json:"build"`
+		Status              string            `json:"status"`
+		RegulatoryAmbiguity bool              `json:"regulatory_ambiguity"`
+	}
 	wantSlugs := map[string]string{
 		"PA-0001": "sample-rate-buildup",
 		"PA-0002": "sample-solicitation-review",
@@ -157,19 +165,28 @@ func TestPriorityLanesAllFourTemplatesAndRebuild(t *testing.T) {
 			t.Fatalf("%s: state=%q held=%v next=%q ok=%v", id, state, held, next, ok)
 		}
 		rawRes := results["moldloft"]
-		var topKeys map[string]json.RawMessage
-		if err := json.Unmarshal(rawRes, &topKeys); err != nil {
-			t.Fatalf("%s: unmarshal results.moldloft: %v", id, err)
+		var wire shakedownMoldloftWire
+		dec := json.NewDecoder(bytes.NewReader(rawRes))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&wire); err != nil {
+			t.Fatalf("%s: strict Shakedown moldloftWire decode failed: %v", id, err)
 		}
-		if len(topKeys) != 2 || topKeys["publish"] == nil || topKeys["build"] == nil {
-			t.Errorf("%s: unexpected top-level keys in results.moldloft: %s", id, rawRes)
+		if wire.Status != "built" || wire.RegulatoryAmbiguity {
+			t.Errorf("%s: unexpected status=%q regulatory_ambiguity=%v", id, wire.Status, wire.RegulatoryAmbiguity)
 		}
+		if wire.Files["index.html"] == "" || wire.Files["moldloft.json"] == "" {
+			t.Errorf("%s: results.moldloft.files missing index.html or moldloft.json", id)
+		}
+
 		var payload worker.ResultPayload
 		if err := json.Unmarshal(rawRes, &payload); err != nil {
 			t.Fatalf("%s: decode ResultPayload: %v", id, err)
 		}
-		if payload.Publish.Repository != "https://github.com/clearedstack/"+slug {
-			t.Errorf("%s: publish.repository = %q", id, payload.Publish.Repository)
+		if payload.Publish == nil || payload.Publish.Repository != "https://github.com/clearedstack/"+slug {
+			t.Errorf("%s: publish = %+v", id, payload.Publish)
+		}
+		if payload.Build == nil || len(payload.Files) != payload.Build.FileCount {
+			t.Errorf("%s: file count mismatch: files=%d build=%+v", id, len(payload.Files), payload.Build)
 		}
 		if !payload.Build.Committed || payload.Build.CommitSHA1 == "" || payload.Build.CommitSHA1 != pf.Head(slug) {
 			t.Errorf("%s: build commit %q != plainforge head %q", id, payload.Build.CommitSHA1, pf.Head(slug))
@@ -207,6 +224,62 @@ func TestPriorityLanesAllFourTemplatesAndRebuild(t *testing.T) {
 	secondHead := pf.Head("sample-rate-buildup")
 	if secondHead == "" || secondHead == firstHead {
 		t.Errorf("expected revised rebuild commit parented on %s, got %s", firstHead, secondHead)
+	}
+
+	// Date-input calculator spec also builds and pushes within the 64 KiB cap.
+	dateSpec := loadFixtureWithItemID(t, "stack-templates/calculator/fixtures/golden/sample-period-days/spec.json", "PA-0005")
+	ms.Seed(muster.SeedItem{
+		ID:      "PA-0005",
+		State:   muster.StateApproved,
+		Lane:    muster.LaneUrgent,
+		Next:    "moldloft",
+		Results: map[string]json.RawMessage{"waybill": dateSpec},
+	})
+	if n, err := w.Drain(ctx); err != nil || n != 1 {
+		t.Fatalf("date calculator Drain: n=%d err=%v", n, err)
+	}
+	if pf.Head("sample-period-days") == "" {
+		t.Errorf("expected sample-period-days commit in Plainforge")
+	}
+}
+
+func TestRegulatoryAmbiguityForwardsToShakedownWithoutCommit(t *testing.T) {
+	ms := muster.NewStandIn()
+	msSrv := httptest.NewServer(ms)
+	defer msSrv.Close()
+
+	pf := plainforge.NewStandIn()
+	pfSrv := httptest.NewServer(pf)
+	defer pfSrv.Close()
+
+	ms.Seed(muster.SeedItem{
+		ID:      "PA-0042",
+		State:   muster.StateApproved,
+		Lane:    muster.LaneNormal,
+		Next:    "moldloft",
+		Results: map[string]json.RawMessage{"waybill": json.RawMessage(`{"slug":"ambiguous-rule","regulatory_ambiguity":true}`)},
+	})
+
+	mc, _ := muster.NewHTTPClient(msSrv.URL, muster.StaticTokenSource("moldloft"), 5*time.Second)
+	pc, _ := plainforge.NewHTTPCommitter(pfSrv.URL, 5*time.Second)
+	sp, _ := spool.Open(t.TempDir())
+	w, err := worker.New(worker.Config{Muster: mc, Committer: pc, Spool: sp})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if n, err := w.Drain(context.Background()); err != nil || n != 1 {
+		t.Fatalf("Drain: n=%d err=%v", n, err)
+	}
+	state, held, next, results, ok := ms.ItemSnapshot("PA-0042")
+	if !ok || state != muster.StateBuilding || held || next != "shakedown" {
+		t.Fatalf("PA-0042: state=%q held=%v next=%q ok=%v", state, held, next, ok)
+	}
+	if pf.Head("ambiguous-rule") != "" {
+		t.Errorf("expected no Plainforge commit on regulatory ambiguity")
+	}
+	if got := string(results["moldloft"]); got != `{"status":"regulatory_ambiguity","regulatory_ambiguity":true}` {
+		t.Errorf("results.moldloft = %s, want exact regulatory_ambiguity payload", got)
 	}
 }
 
@@ -402,4 +475,93 @@ func (s *slowOnCompleteClient) Complete(ctx context.Context, lease, state string
 		s.standIn.SetCondition("logbook takes too long")
 	}
 	return s.Client.Complete(ctx, lease, state, result)
+}
+
+func TestCrossStageShakedownBinaryHandoff(t *testing.T) {
+	shakedownBin := strings.TrimSpace(os.Getenv("SHAKEDOWN_BIN"))
+	if shakedownBin == "" {
+		t.Skip("SHAKEDOWN_BIN is unset; skipping live shakedown binary cross-stage test")
+	}
+
+	ms := muster.NewStandIn()
+	msSrv := httptest.NewServer(ms)
+	defer msSrv.Close()
+
+	pf := plainforge.NewStandIn()
+	pfSrv := httptest.NewServer(pf)
+	defer pfSrv.Close()
+
+	goldenSpecs := []struct {
+		id   string
+		path string
+	}{
+		{"PA-0101", "stack-templates/calculator/fixtures/golden/sample-order-amount/spec.json"},
+		{"PA-0102", "stack-templates/calculator/fixtures/golden/sample-rate-buildup/spec.json"},
+		{"PA-0103", "stack-templates/calculator/fixtures/golden/sample-period-days/spec.json"},
+		{"PA-0104", "stack-templates/checklist/fixtures/golden/sample-solicitation-review/spec.json"},
+		{"PA-0105", "stack-templates/validator/fixtures/golden/sample-line-code-check/spec.json"},
+		{"PA-0106", "stack-templates/decision-tree/fixtures/golden/sample-clause-routing/spec.json"},
+	}
+	for _, gs := range goldenSpecs {
+		ms.Seed(muster.SeedItem{
+			ID:      gs.id,
+			State:   muster.StateApproved,
+			Lane:    muster.LaneUrgent,
+			Next:    "moldloft",
+			Results: map[string]json.RawMessage{"waybill": loadFixtureWithItemID(t, gs.path, gs.id)},
+		})
+	}
+	ms.Seed(muster.SeedItem{
+		ID:      "PA-0107",
+		State:   muster.StateApproved,
+		Lane:    muster.LaneUrgent,
+		Next:    "moldloft",
+		Results: map[string]json.RawMessage{"waybill": json.RawMessage(`{"regulatory_ambiguity":true}`)},
+	})
+
+	mc, err := muster.NewHTTPClient(msSrv.URL, muster.StaticTokenSource("moldloft"), 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pc, err := plainforge.NewHTTPCommitter(pfSrv.URL, 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sp, err := spool.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := worker.New(worker.Config{Muster: mc, Committer: pc, Spool: sp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := w.Drain(context.Background()); err != nil || n != 7 {
+		t.Fatalf("Moldloft Drain: n=%d err=%v", n, err)
+	}
+
+	tokenPath := filepath.Join(t.TempDir(), "shakedown.token")
+	if err := os.WriteFile(tokenPath, []byte("shakedown\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	shakedownSpool := t.TempDir()
+	for i := 0; i < 7; i++ {
+		cmd := exec.Command(shakedownBin, "run", "-once", "-muster-url", msSrv.URL, "-token-file", tokenPath, "-spool-dir", shakedownSpool)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("shakedown run -once #%d failed: %v\n%s", i+1, err, out)
+		}
+	}
+
+	for _, gs := range goldenSpecs {
+		state, held, next, results, ok := ms.ItemSnapshot(gs.id)
+		if !ok || state != muster.StateBuilding || held || next != "chartroom" {
+			t.Fatalf("%s after shakedown: state=%q held=%v next=%q ok=%v", gs.id, state, held, next, ok)
+		}
+		if len(results["shakedown"]) == 0 || !strings.Contains(string(results["shakedown"]), `"attestation"`) {
+			t.Errorf("%s missing shakedown attestation: %s", gs.id, results["shakedown"])
+		}
+	}
+	state107, held107, next107, _, ok107 := ms.ItemSnapshot("PA-0107")
+	if !ok107 || state107 != muster.StateParked || held107 || next107 != "" {
+		t.Fatalf("PA-0107 after shakedown: state=%q held=%v next=%q ok=%v, want parked", state107, held107, next107, ok107)
+	}
 }

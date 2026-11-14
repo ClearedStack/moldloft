@@ -88,8 +88,44 @@
     return { units: divRound(n, den), scale: scale };
   }
 
+  var ISO_DATE_PATTERN = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+  var MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+  function isLeapYear(y) {
+    return y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0);
+  }
+
+  // parseISODate returns a BigInt civil day count for a valid proleptic
+  // Gregorian YYYY-MM-DD date from 0001-01-01 through 9999-12-31, or null.
+  function parseISODate(text) {
+    if (typeof text !== "string" || !ISO_DATE_PATTERN.test(text)) {
+      return null;
+    }
+    var y = Number(text.slice(0, 4));
+    var m = Number(text.slice(5, 7));
+    var d = Number(text.slice(8, 10));
+    if (y < 1 || m < 1 || m > 12) {
+      return null;
+    }
+    var maxDay = MONTH_DAYS[m - 1];
+    if (m === 2 && isLeapYear(y)) {
+      maxDay = 29;
+    }
+    if (d < 1 || d > maxDay) {
+      return null;
+    }
+    var yAdj = BigInt(m <= 2 ? y - 1 : y);
+    var era = yAdj / 400n;
+    var yoe = yAdj - era * 400n;
+    var mp = BigInt(m > 2 ? m - 3 : m + 9);
+    var doy = (153n * mp + 2n) / 5n + BigInt(d - 1);
+    var doe = yoe * 365n + yoe / 4n - yoe / 100n + doy;
+    return era * 146097n + doe;
+  }
+
   root.MoldloftDecimal = {
     parse: parse,
+    parseISODate: parseISODate,
     format: format,
     rescale: rescale,
     cmp: cmp,
