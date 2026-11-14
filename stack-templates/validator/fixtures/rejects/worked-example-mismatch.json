@@ -1,0 +1,37 @@
+{
+  "contract_version": "v1",
+  "item_id": "PA-0102",
+  "tool": {
+    "slug": "sample-line-code-check",
+    "title": "Sample Line Code Validator",
+    "summary": "Worked example expects valid true on invalid input."
+  },
+  "pattern": "validator",
+  "citations": [
+    { "id": "c1", "label": "Sample Rule 1" }
+  ],
+  "scope_limits": ["Fixture only."],
+  "body": {
+    "delimiter": "pipe",
+    "has_header": false,
+    "columns": [
+      {
+        "id": "clin",
+        "label": "Line item",
+        "required": true,
+        "rule": "digits",
+        "min_len": 4,
+        "max_len": 4,
+        "citation": "c1"
+      }
+    ]
+  },
+  "worked_examples": [
+    {
+      "id": "ex1",
+      "label": "Wrong expectation",
+      "input": "ABCD",
+      "expect": { "valid": true, "row_count": 1, "error_count": 0 }
+    }
+  ]
+}

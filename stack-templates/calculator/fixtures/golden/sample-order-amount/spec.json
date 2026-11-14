@@ -1,0 +1,88 @@
+{
+  "contract_version": "v1",
+  "item_id": "item-sample-0002",
+  "tool": {
+    "slug": "sample-order-amount",
+    "title": "Sample order amount",
+    "summary": "Multiplies a made-up quantity, unit price and number of periods into a whole-number amount. It has no fixed values and no lookup tables, to exercise the calculator template without them."
+  },
+  "pattern": "calculator",
+  "citations": [
+    {
+      "id": "rule_amount",
+      "label": "Sample Rule 30.1 (fictional)"
+    }
+  ],
+  "scope_limits": [
+    "Every rule and number here is fictional. Do not use the result for a real order."
+  ],
+  "body": {
+    "inputs": [
+      {
+        "id": "quantity",
+        "label": "Quantity in each period",
+        "kind": "number",
+        "decimals": 0,
+        "min": "0",
+        "max": "100000",
+        "default": "12"
+      },
+      {
+        "id": "unit_price",
+        "label": "Unit price",
+        "kind": "number",
+        "decimals": 2,
+        "min": "0.00",
+        "max": "1000.00",
+        "default": "19.99"
+      },
+      {
+        "id": "periods",
+        "label": "Number of periods",
+        "kind": "number",
+        "decimals": 0,
+        "min": "1",
+        "max": "12",
+        "default": "3"
+      }
+    ],
+    "steps": [
+      {
+        "id": "amount",
+        "label": "Order amount",
+        "op": "mul",
+        "args": ["quantity", "unit_price", "periods"],
+        "decimals": 0,
+        "citation": "rule_amount"
+      },
+      {
+        "id": "per_period",
+        "label": "Amount for each period",
+        "op": "div",
+        "args": ["amount", "periods"],
+        "decimals": 1
+      }
+    ],
+    "outputs": ["amount"]
+  },
+  "worked_examples": [
+    {
+      "id": "starting_values",
+      "label": "The starting values: 12 at 19.99 for 3 periods",
+      "inputs": { "quantity": "12", "unit_price": "19.99", "periods": "3" },
+      "expect": { "amount": "720", "per_period": "240.0" }
+    },
+    {
+      "id": "half_rounds_up",
+      "label": "An amount of exactly one half rounds up to 1",
+      "inputs": { "quantity": "1", "unit_price": "0.50", "periods": "1" },
+      "expect": { "amount": "1", "per_period": "1.0" }
+    },
+    {
+      "id": "twelve_periods",
+      "label": "7 at 33.33 for 12 periods",
+      "inputs": { "quantity": "7", "unit_price": "33.33", "periods": "12" },
+      "expect": { "amount": "2800", "per_period": "233.3" }
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "contract_version": "v1",
+  "item_id": "PA-0101",
+  "tool": {
+    "slug": "sample-solicitation-review",
+    "title": "Sample solicitation preparation checklist",
+    "summary": "Checks three made-up preparation steps before a fictional notice is filed. Every rule and citation in this tool is invented for testing."
+  },
+  "pattern": "checklist",
+  "citations": [
+    {
+      "id": "rule_notice",
+      "label": "Sample Rule 44.1(a) (fictional)",
+      "note": "States that a made-up public notice summary must be attached",
+      "url": "https://rules.example/sample-rule-44-1"
+    },
+    {
+      "id": "rule_period",
+      "label": "Sample Rule 44.2(b) (fictional)",
+      "note": "States when the optional transition schedule applies"
+    }
+  ],
+  "scope_limits": [
+    "Every rule and citation here is fictional. Do not use this checklist for a real solicitation."
+  ],
+  "body": {
+    "items": [
+      {
+        "id": "public_summary",
+        "label": "Public summary sheet is attached",
+        "required": true,
+        "citation": "rule_notice",
+        "help": "Required for every fictional filing."
+      },
+      {
+        "id": "transition_plan",
+        "label": "Transition schedule is attached",
+        "required": true,
+        "na_allowed": true,
+        "citation": "rule_period",
+        "help": "Mark Not applicable when there is no prior order."
+      },
+      {
+        "id": "plain_glossary",
+        "label": "Plain-language glossary is included",
+        "required": false,
+        "citation": "rule_notice"
+      }
+    ]
+  },
+  "worked_examples": [
+    {
+      "id": "all_met_with_na",
+      "label": "Required summary present, transition schedule not applicable, advisory glossary omitted",
+      "answers": {
+        "public_summary": "yes",
+        "transition_plan": "na",
+        "plain_glossary": "no"
+      },
+      "expect": {
+        "status": "complete",
+        "unmet_required": 0,
+        "yes_count": 1,
+        "no_count": 1,
+        "na_count": 1
+      }
+    },
+    {
+      "id": "missing_required_item",
+      "label": "Required summary missing leaves one unmet required item",
+      "answers": {
+        "public_summary": "no",
+        "transition_plan": "yes",
+        "plain_glossary": "yes"
+      },
+      "expect": {
+        "status": "incomplete",
+        "unmet_required": 1,
+        "yes_count": 2,
+        "no_count": 1,
+        "na_count": 0
+      }
+    }
+  ]
+}

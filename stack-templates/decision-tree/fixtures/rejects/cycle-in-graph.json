@@ -1,0 +1,52 @@
+{
+  "contract_version": "v1",
+  "item_id": "PA-0103",
+  "tool": {
+    "slug": "sample-clause-routing",
+    "title": "Sample Decision Tree",
+    "summary": "Contains a cycle between q1 and q2."
+  },
+  "pattern": "decision-tree",
+  "citations": [{ "id": "c1", "label": "Sample Rule 1" }],
+  "scope_limits": ["Fixture only."],
+  "body": {
+    "start": "q1",
+    "questions": [
+      {
+        "id": "q1",
+        "prompt": "First question?",
+        "citation": "c1",
+        "options": [
+          { "key": "yes", "label": "Yes", "next": "q2" },
+          { "key": "no", "label": "No", "next": "done" }
+        ]
+      },
+      {
+        "id": "q2",
+        "prompt": "Second question?",
+        "citation": "c1",
+        "options": [
+          { "key": "back", "label": "Loop back", "next": "q1" },
+          { "key": "finish", "label": "Finish", "next": "done" }
+        ]
+      }
+    ],
+    "outcomes": [
+      {
+        "id": "done",
+        "title": "Done",
+        "summary": "Reached terminal outcome.",
+        "status": "eligible",
+        "citation": "c1"
+      }
+    ]
+  },
+  "worked_examples": [
+    {
+      "id": "ex1",
+      "label": "Direct exit",
+      "answers": { "q1": "no" },
+      "expect": { "outcome": "done", "status": "eligible", "steps": 1 }
+    }
+  ]
+}
