@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -140,5 +142,67 @@ func TestRunRejectsBadConfigAndContractVersionWithoutLeakingPaths(t *testing.T) 
 	code, _, errOut = runCLI("run", "-standalone", "-once", "-spool", dir)
 	if code != 1 || !strings.HasPrefix(errOut, "E_NEEDS_SUBTOOL:") {
 		t.Errorf("bad CONTRACT_VERSION: exit %d, stderr %q", code, errOut)
+	}
+}
+
+const fakeToken = "fake-token-0123456789abcdef"
+
+func TestRunPlainforgeCredentialsHalfSetRefusesToStart(t *testing.T) {
+	dir := t.TempDir()
+	tokenFile := filepath.Join(dir, "token")
+	if err := os.WriteFile(tokenFile, []byte(fakeToken+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cases := []map[string]string{
+		{"MOLDLOFT_PLAINFORGE_USER": "bot"},
+		{"MOLDLOFT_PLAINFORGE_TOKEN_FILE": tokenFile},
+		{"MOLDLOFT_PLAINFORGE_USER": "bot", "MOLDLOFT_PLAINFORGE_TOKEN_FILE": filepath.Join(dir, "missing")},
+	}
+	for _, env := range cases {
+		for k, v := range env {
+			t.Setenv(k, v)
+		}
+		code, out, errOut := runCLI("run", "-standalone", "-once", "-spool", filepath.Join(dir, "spool"))
+		if code != 2 || errOut == "" || strings.Contains(errOut+out, dir) || strings.Contains(errOut+out, fakeToken) {
+			t.Errorf("%v: exit %d, stdout %q, stderr %q", env, code, out, errOut)
+		}
+		for k := range env {
+			t.Setenv(k, "")
+		}
+	}
+}
+
+func TestRunRefusedPushNeverPrintsTheToken(t *testing.T) {
+	var auth []string
+	forge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth = append(auth, r.Header.Get("Authorization"))
+		http.Error(w, "denied "+fakeToken, http.StatusUnauthorized)
+	}))
+	defer forge.Close()
+
+	rawSpec, err := os.ReadFile("../../stack-templates/checklist/fixtures/golden/sample-solicitation-review/spec.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	seedFile := filepath.Join(dir, "seed.json")
+	seed := `[{"id":"PA-0101","state":"approved","lane":"urgent","next":"moldloft","results":{"waybill":` + string(rawSpec) + `}}]`
+	tokenFile := filepath.Join(dir, "token")
+	for p, c := range map[string]string{seedFile: seed, tokenFile: fakeToken + "\n"} {
+		if err := os.WriteFile(p, []byte(c), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("MOLDLOFT_PLAINFORGE_USER", "bot")
+	t.Setenv("MOLDLOFT_PLAINFORGE_TOKEN_FILE", tokenFile)
+
+	_, out, errOut := runCLI("run", "-standalone", "-once", "-seed", seedFile, "-spool", filepath.Join(dir, "spool"), "-plainforge", forge.URL+"/ClearedStack")
+	if len(auth) == 0 || auth[0] == "" {
+		t.Fatalf("no basic auth reached the forge: %v", auth)
+	}
+	for _, text := range []string{out, errOut} {
+		if strings.Contains(text, fakeToken) || strings.Contains(text, "Basic ") {
+			t.Fatalf("output leaks the credential: %q", text)
+		}
 	}
 }

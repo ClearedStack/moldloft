@@ -140,6 +140,12 @@ func runWorker(ctx context.Context, args []string, stdout, stderr io.Writer) int
 		return 2
 	}
 
+	pfUser, pfToken, pfAuth, err := plainforge.LoadCredentials(os.Getenv("MOLDLOFT_PLAINFORGE_USER"), os.Getenv("MOLDLOFT_PLAINFORGE_TOKEN_FILE"))
+	if err != nil {
+		fmt.Fprintln(stderr, "moldloft: "+err.Error())
+		return 2
+	}
+
 	var tokenSource muster.TokenSource
 	var cleanup func()
 	if *standalone {
@@ -175,6 +181,9 @@ func runWorker(ctx context.Context, args []string, stdout, stderr io.Writer) int
 		if err != nil {
 			fmt.Fprintln(stderr, "moldloft: invalid plainforge configuration")
 			return 2
+		}
+		if pfAuth {
+			pc.SetBasicAuth(pfUser, pfToken)
 		}
 		committer = pc
 	}

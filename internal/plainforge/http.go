@@ -23,10 +23,15 @@ const maxGitResponseBytes = 1 << 20
 type HTTPCommitter struct {
 	baseURL string
 	http    *http.Client
+	user    string
+	token   string // never logged, never put in an error or URL
 }
 
 // NewHTTPCommitter builds a Plainforge smart HTTP client. It never follows
-// redirects and never uses an HTTP proxy from the environment.
+// redirects (so credentials never leave the configured host) and never uses
+// an HTTP proxy from the environment. The base address may carry a path, such
+// as http://host:3000/ClearedStack, and the repository is then
+// <base>/<slug>.git. The target repository must already exist.
 func NewHTTPCommitter(baseURL string, timeout time.Duration) (*HTTPCommitter, error) {
 	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if !strings.HasPrefix(trimmed, "http://") && !strings.HasPrefix(trimmed, "https://") {
@@ -92,6 +97,7 @@ func (c *HTTPCommitter) fetchMainRef(ctx context.Context, slug string) (string, 
 	if err != nil {
 		return "", errs.Parsef("plainforge", "could not build ref discovery request")
 	}
+	c.authorize(req)
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return "", errs.Timeoutf("plainforge", "ref discovery timed out")
@@ -148,6 +154,7 @@ func (c *HTTPCommitter) pushBundle(ctx context.Context, slug, oldMain string, bu
 	req.Header.Set("Content-Type", "application/x-git-receive-pack-request")
 	req.Header.Set("Accept", "application/x-git-receive-pack-result")
 
+	c.authorize(req)
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return errs.Timeoutf("plainforge", "receive-pack push timed out")
@@ -219,6 +226,9 @@ func verifyReceivePackReport(raw []byte) error {
 func classifyHTTPFailure(status int, body []byte) error {
 	if status == http.StatusTooManyRequests || status >= 500 {
 		return errs.Timeoutf("plainforge", "returned temporary error status")
+	}
+	if status == http.StatusUnauthorized || status == http.StatusForbidden {
+		return errs.Parsef("plainforge", "credentials were refused")
 	}
 	if status == http.StatusUnprocessableEntity {
 		return errs.NeedsSubtoolf("plainforge", "has no rule for this push")

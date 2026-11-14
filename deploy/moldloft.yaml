@@ -65,7 +65,19 @@ spec:
             - name: MUSTER_URL
               value: http://muster.clearedstack.svc.cluster.local:8080
             - name: PLAINFORGE_URL
-              value: http://plainforge.clearedstack.svc.cluster.local:8080
+              value: http://plainforge-http.clearedstack.svc.cluster.local:3000/ClearedStack
+            # Push credentials come from the Secret moldloft-plainforge (keys
+            # user and token), which the owner creates. Both are optional: with
+            # the Secret absent Moldloft pushes without credentials. The target
+            # repository must already exist in the ClearedStack organization.
+            - name: MOLDLOFT_PLAINFORGE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: moldloft-plainforge
+                  key: user
+                  optional: true
+            - name: MOLDLOFT_PLAINFORGE_TOKEN_FILE
+              value: /var/run/moldloft-plainforge/token
             - name: MOLDLOFT_SPOOL_DIR
               value: /var/spool/cs
             - name: MOLDLOFT_PUBLIC_REPO_BASE
@@ -88,7 +100,15 @@ spec:
           volumeMounts:
             - name: spool
               mountPath: /var/spool/cs
+            - name: plainforge-credentials
+              mountPath: /var/run/moldloft-plainforge
+              readOnly: true
       volumes:
         - name: spool
           emptyDir:
             sizeLimit: 16Mi
+        - name: plainforge-credentials
+          secret:
+            secretName: moldloft-plainforge
+            optional: true
+            defaultMode: 0440

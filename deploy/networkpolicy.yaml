@@ -1,7 +1,8 @@
 # Default deny for all pods in cs-workers, plus the narrow egress rule for
-# Moldloft: cluster DNS and HTTP to Muster and Plainforge in namespace
-# clearedstack. Moldloft has no ingress and no direct access to Logbook,
-# Lazarette or the public internet.
+# Moldloft: cluster DNS and HTTP to Muster (80, 8080) and Plainforge
+# (Forgejo, service plainforge-http, TCP 3000) in namespace clearedstack.
+# Moldloft has no ingress and no direct access to Logbook, Lazarette or the
+# public internet.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -48,12 +49,11 @@ spec:
               kubernetes.io/metadata.name: clearedstack
           podSelector:
             matchLabels:
-              app.kubernetes.io/name: plainforge
+              app.kubernetes.io/name: forgejo
+              app.kubernetes.io/instance: plainforge
       ports:
         - protocol: TCP
-          port: 80
-        - protocol: TCP
-          port: 8080
+          port: 3000
     - to:
         - namespaceSelector:
             matchLabels:
