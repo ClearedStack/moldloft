@@ -1,0 +1,17 @@
+# How ko builds the Moldloft worker image straight from Go source.
+# There is no Dockerfile.
+#
+#   ko build --platform=linux/arm64 ./cmd/moldloft
+defaultPlatforms:
+  - linux/arm64
+
+builds:
+  - id: moldloft
+    main: ./cmd/moldloft
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w

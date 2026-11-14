@@ -1,0 +1,20 @@
+# The stack templates Moldloft knows about, in the order they are tried.
+#
+# name    the sub-tool name from component.json
+# path    its folder under stack-templates/
+# status  built    the template exists and has fixtures
+#         planned  named by SPEC.md, not written yet; a spec that needs it
+#                  is paused with E_NEEDS_SUBTOOL
+templates:
+  - name: calculator
+    path: calculator
+    status: built
+  - name: checklist
+    path: checklist
+    status: built
+  - name: validator
+    path: validator
+    status: built
+  - name: decision-tree
+    path: decision-tree
+    status: built

@@ -1,0 +1,12 @@
+{
+  "contract_version": "v1",
+  "item_id": "item-sample-0001",
+  "tool": {
+    "slug": "sample-rate-buildup",
+    "title": "Sample hourly rate build-up",
+    "summary": "Builds a made-up hourly rate from a base rate, add-on percentages and a fee, one step at a time. Every rule and number in it is invented to exercise the calculator template."
+  },
+  "pattern": "calculator",
+  "citations": [
+    {
+

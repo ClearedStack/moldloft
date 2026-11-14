@@ -1,0 +1,50 @@
+{
+  "contract_version": "v1",
+  "item_id": "PA-0103",
+  "tool": {
+    "slug": "sample-clause-routing",
+    "title": "Sample Decision Tree",
+    "summary": "Worked example expects wrong outcome."
+  },
+  "pattern": "decision-tree",
+  "citations": [{ "id": "c1", "label": "Sample Rule 1" }],
+  "scope_limits": ["Fixture only."],
+  "body": {
+    "start": "q1",
+    "questions": [
+      {
+        "id": "q1",
+        "prompt": "Proceed?",
+        "citation": "c1",
+        "options": [
+          { "key": "yes", "label": "Yes", "next": "ok" },
+          { "key": "no", "label": "No", "next": "stop" }
+        ]
+      }
+    ],
+    "outcomes": [
+      {
+        "id": "ok",
+        "title": "OK",
+        "summary": "Eligible.",
+        "status": "eligible",
+        "citation": "c1"
+      },
+      {
+        "id": "stop",
+        "title": "Stop",
+        "summary": "Not eligible.",
+        "status": "ineligible",
+        "citation": "c1"
+      }
+    ]
+  },
+  "worked_examples": [
+    {
+      "id": "ex1",
+      "label": "Wrong outcome expected",
+      "answers": { "q1": "no" },
+      "expect": { "outcome": "ok", "status": "eligible", "steps": 1 }
+    }
+  ]
+}

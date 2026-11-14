@@ -1,0 +1,37 @@
+{
+  "contract_version": "v1",
+  "item_id": "PA-0101",
+  "tool": {
+    "slug": "sample-solicitation-review",
+    "title": "Sample solicitation preparation checklist",
+    "summary": "Made-up checklist reject fixture."
+  },
+  "pattern": "checklist",
+  "citations": [
+    {
+      "id": "rule_notice",
+      "label": "Sample Rule 44.1(a) (fictional)"
+    }
+  ],
+  "scope_limits": [
+    "Every rule here is fictional."
+  ],
+  "body": {
+    "items": [
+      {
+        "id": "public_summary",
+        "label": "Public summary sheet is attached",
+        "required": true,
+        "citation": "rule_notice"
+      }
+    ]
+  },
+  "worked_examples": [
+    {
+      "id": "ex_one",
+      "label": "Wrong status for unmet required item",
+      "answers": { "public_summary": "no" },
+      "expect": { "status": "complete", "unmet_required": 0, "yes_count": 0, "no_count": 1, "na_count": 0 }
+    }
+  ]
+}
