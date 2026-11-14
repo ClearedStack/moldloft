@@ -51,7 +51,7 @@
       {
         "id": "hours",
         "label": "Hours of work",
-        "kind": "date",
+        "kind": "currency",
         "unit": "hours",
         "decimals": 1,
         "min": "0",

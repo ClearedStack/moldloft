@@ -41,8 +41,8 @@ type optionView struct {
 }
 
 type inputView struct {
-	ID, Label, Unit, Default, Hint string
-	Options                        []optionView
+	ID, Label, Kind, Unit, Min, Max, Default, Hint string
+	Options                                        []optionView
 }
 
 type rowView struct {
@@ -143,15 +143,18 @@ func buildView(t *Tool, examples []Example, generator string) view {
 
 	for _, in := range t.Inputs {
 		labels[in.ID] = in.Label
-		iv := inputView{ID: in.ID, Label: in.Label, Unit: in.Unit, Default: in.Default}
+		iv := inputView{ID: in.ID, Label: in.Label, Kind: in.Kind, Unit: in.Unit, Min: in.Min, Max: in.Max, Default: in.Default}
 		var hint string
-		if in.Kind == "choice" {
+		switch in.Kind {
+		case "choice":
 			tb := t.table(in.Table)
 			for _, row := range tb.Rows {
 				iv.Options = append(iv.Options, optionView{row.Key, row.Label, row.Value, row.Key == in.Default})
 			}
 			hint = "Choose one. The values are listed under “" + tb.Label + "” below."
-		} else {
+		case "date":
+			hint = fmt.Sprintf("Calendar date from %s to %s (YYYY-MM-DD).", in.Min, in.Max)
+		default:
 			hint = fmt.Sprintf("From %s to %s, %s.", in.Min, in.Max, placesAllowed(in.Decimals))
 		}
 		if in.Help != "" {
@@ -206,6 +209,8 @@ func how(op string, names []string) string {
 		return "The smallest of: " + strings.Join(names, "; ")
 	case "max":
 		return "The largest of: " + strings.Join(names, "; ")
+	case "days_between":
+		return "Calendar days from " + names[0] + " to " + names[1]
 	}
 	panic("calculator: no wording for operation " + op)
 }

@@ -10,6 +10,7 @@
   var MESSAGES = {
     missing: "Enter a value.",
     format: "Enter a plain number, such as 12 or 12.5, with no commas or symbols.",
+    date_format: "Enter a real calendar date as YYYY-MM-DD, such as 2026-03-15.",
     decimals: "This value has too many decimal places.",
     range: "This value is outside the range allowed.",
     choice: "Choose one of the listed options.",

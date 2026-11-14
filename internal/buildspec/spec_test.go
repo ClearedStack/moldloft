@@ -57,4 +57,13 @@ func TestMusterItemIDsAndWaybillUnwrap(t *testing.T) {
 	if _, err := UnwrapWaybillResult([]byte(poisoned)); errs.CodeOf(err) != errs.Parse {
 		t.Fatalf("poisoned envelope got %v, want E_PARSE", err)
 	}
+
+	ambigSpec, ambig, err := UnwrapWaybillEnvelope([]byte(`{"regulatory_ambiguity":true}`))
+	if err != nil || !ambig || ambigSpec != nil {
+		t.Fatalf("UnwrapWaybillEnvelope regulatory_ambiguity: spec=%s ambig=%v err=%v", ambigSpec, ambig, err)
+	}
+	poisonedAmbig := `{"regulatory_ambiguity":true,"raw_html":"<p>vendor</p>"}`
+	if _, _, err := UnwrapWaybillEnvelope([]byte(poisonedAmbig)); errs.CodeOf(err) != errs.Parse {
+		t.Fatalf("poisoned regulatory_ambiguity envelope got %v, want E_PARSE", err)
+	}
 }

@@ -355,6 +355,20 @@ func (v Value) Decimal() (decimal.D, string) {
 	return d, s
 }
 
+// ISODate reads a strict YYYY-MM-DD calendar date written as a string.
+func (v Value) ISODate() (int64, string) {
+	s, ok := v.str()
+	if !ok {
+		return 0, ""
+	}
+	day, ok := decimal.ParseISODate(s)
+	if !ok {
+		v.r.Fail(errs.Parsef(v.path, "is not a valid YYYY-MM-DD calendar date"))
+		return 0, ""
+	}
+	return day, s
+}
+
 // Int reads a whole JSON number between min and max.
 func (v Value) Int(min, max int) int {
 	if !v.ok() {

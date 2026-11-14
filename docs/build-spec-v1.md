@@ -8,16 +8,24 @@ shape Moldloft reads today so Waybill and Moldloft can align on one shared
 schema. Complete examples live under `fixtures/golden/` in each folder of
 [`stack-templates/`](../stack-templates).
 
-## Envelope in `results.waybill`
+## Envelope in `results.waybill` and output in `results.moldloft`
 
 When Moldloft leases an `approved` or `building` item from Muster, it ignores
-`found` and every `results` entry except `results.waybill`. `results.waybill`
-may be either:
+`found` and every `results` entry except `results.waybill`. After checking that
+`results.waybill` contains no forbidden raw observation fields, Moldloft accepts:
 
-1. The build specification object directly (carrying `contract_version`), or
-2. An envelope object carrying catalog metadata alongside `"spec": { ... }`,
-   from which Moldloft extracts `spec` after verifying that the outer envelope
-   contains no forbidden raw observation fields.
+1. The build specification object directly (carrying `contract_version`),
+2. An envelope object carrying catalog metadata alongside `"spec": { ... }`, or
+3. An envelope carrying `"regulatory_ambiguity": true` (or
+   `"status": "regulatory_ambiguity"`), in which case Moldloft skips generation
+   and Plainforge commits and completes `building` with
+   `{"status": "regulatory_ambiguity", "regulatory_ambiguity": true}` so
+   Shakedown transitions the item `building -> parked`.
+
+On a normal build, Moldloft writes `results.moldloft` with `{status: "built",
+publish: {repository}, build: {...}, files: {<path>: <utf8>}}`, satisfying both
+Shakedown's `moldloftWire` bundle verifier and Chartroom's `publish` block
+within Muster's 64 KiB `/v1/complete` request cap.
 
 ## Rules for the whole file
 
@@ -36,6 +44,9 @@ may be either:
 - A decimal number is written as a string: up to 15 digits, then optionally a
   point and up to 9 digits. No exponent, no separators. A count such as
   `decimals` is a JSON whole number.
+- A calendar date is written as an ISO-8601 `YYYY-MM-DD` string from
+  `0001-01-01` through `9999-12-31` and checked against proleptic Gregorian
+  month lengths and leap-year rules using pure integer arithmetic.
 
 Every breach of these rules is `E_PARSE`.
 
@@ -54,8 +65,8 @@ Every breach of these rules is `E_PARSE`.
 
 ## `calculator` pattern
 
-- `body`: `inputs` (1 to 40 `number` or `choice` inputs; any other `kind` such as `date` is `E_NEEDS_SUBTOOL`), optional `constants`, optional `tables`, `steps` (1 to 80 exact-decimal steps using `add`, `sub`, `mul`, `div`, `pct`, `min`, `max`, rounded half-away-from-zero to `decimals`), and `outputs` (1 to 10 step ids).
-- `worked_examples`: `{id, label, inputs, expect}` verified against the exact decimal evaluator before any file is generated.
+- `body`: `inputs` (1 to 40 `number`, `choice`, or `date` inputs; any other `kind` is `E_NEEDS_SUBTOOL`), optional `constants`, optional `tables`, `steps` (1 to 80 exact steps using `add`, `sub`, `mul`, `div`, `pct`, `min`, `max`, or `days_between` on two `date` inputs with `decimals: 0`, rounded half-away-from-zero to `decimals`), and `outputs` (1 to 10 step ids).
+- `worked_examples`: `{id, label, inputs, expect}` verified against the exact decimal and civil-day evaluator before any file is generated.
 
 ## `checklist` pattern
 

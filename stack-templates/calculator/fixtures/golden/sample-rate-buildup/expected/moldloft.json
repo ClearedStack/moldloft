@@ -34,8 +34,8 @@
     },
     {
       "path": "js/app.js",
-      "bytes": 2499,
-      "sha256": "0dba5032abd57ac46ffaae2061cb84838fdc78fa03735ffb8118c9511ed223e7"
+      "bytes": 2581,
+      "sha256": "164aa8d4fa585286c4bd3937828a9fbefd6727e5217c5618d359e50c586ec2cb"
     },
     {
       "path": "js/data.js",
@@ -44,13 +44,13 @@
     },
     {
       "path": "js/decimal.js",
-      "bytes": 3067,
-      "sha256": "c671990ce67344f22a8af117e4f6f89e6d1f3ffac0be60147e4043364cd52fc2"
+      "bytes": 4214,
+      "sha256": "112518f8e5931a4a1f6c0743e92cd92a64ee9570aae6d68af86f1178297027d9"
     },
     {
       "path": "js/engine.js",
-      "bytes": 3876,
-      "sha256": "05facba3a13e77659005d47249da42afe70108170b46b712e4a967480f599de3"
+      "bytes": 4886,
+      "sha256": "926861734cc4d8064fa6de4f0b6fab8ede87c4e30b9c08672a84c2fd5ee6d829"
     },
     {
       "path": "tests/browser.js",

@@ -25,6 +25,7 @@ type Result struct {
 var faultReasons = map[string]string{
 	"missing":        "has no value",
 	"format":         "is not a plain decimal number",
+	"date_format":    "is not a valid YYYY-MM-DD calendar date",
 	"decimals":       "has more decimal places than the input allows",
 	"range":          "is outside the input's min and max",
 	"choice":         "does not name a row of the input's table",
@@ -41,6 +42,7 @@ var limit = decimal.D{Units: new(big.Int).Exp(big.NewInt(10), big.NewInt(15), ni
 func Evaluate(t *Tool, raw map[string]string) Result {
 	res := Result{Values: map[string]string{}}
 	vals := map[string]decimal.D{}
+	dates := map[string]int64{}
 	fault := func(id, kind string) { res.Faults = append(res.Faults, Fault{id, kind}) }
 	keep := func(id string, d decimal.D) {
 		vals[id] = d
@@ -67,6 +69,21 @@ func Evaluate(t *Tool, raw map[string]string) Result {
 			}
 			continue
 		}
+		if in.Kind == "date" {
+			day, ok := decimal.ParseISODate(text)
+			lo, _ := decimal.ParseISODate(in.Min)
+			hi, _ := decimal.ParseISODate(in.Max)
+			switch {
+			case !ok:
+				fault(in.ID, "date_format")
+			case day < lo || day > hi:
+				fault(in.ID, "range")
+			default:
+				dates[in.ID] = day
+				res.Values[in.ID] = text
+			}
+			continue
+		}
 		d, ok := decimal.Parse(text)
 		lo, _ := decimal.Parse(in.Min)
 		hi, _ := decimal.Parse(in.Max)
@@ -88,6 +105,20 @@ func Evaluate(t *Tool, raw map[string]string) Result {
 
 steps:
 	for _, st := range t.Steps {
+		if st.Op == "days_between" {
+			d0, ok0 := dates[st.Args[0]]
+			d1, ok1 := dates[st.Args[1]]
+			if !ok0 || !ok1 {
+				continue steps
+			}
+			acc := decimal.D{Units: big.NewInt(d1 - d0), Scale: 0}.Rescale(st.Decimals)
+			if acc.Abs().Cmp(limit) >= 0 {
+				fault(st.ID, "overflow")
+				continue
+			}
+			keep(st.ID, acc)
+			continue
+		}
 		args := make([]decimal.D, len(st.Args))
 		for i, ref := range st.Args {
 			d, ok := vals[ref]

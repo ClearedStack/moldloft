@@ -34,6 +34,8 @@
 <option value="{{.Key}}"{{if .Selected}} selected{{end}}>{{.Label}} ({{.Value}})</option>
 {{- end}}
 </select>
+{{- else if eq .Kind "date"}}
+<input id="in-{{.ID}}" type="date" min="{{.Min}}" max="{{.Max}}" value="{{.Default}}" aria-describedby="hint-{{.ID}} err-{{.ID}}">
 {{- else}}
 <input id="in-{{.ID}}" type="text" inputmode="decimal" value="{{.Default}}" aria-describedby="hint-{{.ID}} err-{{.ID}}">
 {{- end}}
